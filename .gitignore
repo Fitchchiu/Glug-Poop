@@ -1,0 +1,22 @@
+.DS_Store
+
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+
+# Build products
+DerivedData/
+build/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
