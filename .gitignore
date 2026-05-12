@@ -2,6 +2,7 @@
 
 # Xcode user-specific files
 xcuserdata/
+*.xcbkptlist
 *.xcuserstate
 *.xccheckout
 *.xcscmblueprint
