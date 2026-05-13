@@ -28,7 +28,38 @@ private enum DataSets {
     static let waterOptions = [100, 300, 500, 750, 1000]
     static let drinks = [("Coffee", "☕️", "9E7B62"), ("Boba", "🧋", "D4B59D"), ("Soda", "🥤", "FF5E3A"), ("Matcha", "🍵", "8EFA48"), ("Wine", "🍷", "800020"), ("Beer", "🍺", "F28E1C")]
     static let foods = [("Burger🍔", "FFCC00"), ("Salad🥗", "007AFF"), ("Pizza🍕", "FF2D55"), ("Sushi🍣", "34C759"), ("Tacos🌮", "FFCC00"), ("Ramen🍜", "007AFF"), ("Meat🥩", "FF2D55"), ("Sweet🍩", "AF52DE")]
-    static let poops = [("🤬", "FF5E3A"), ("😖", "FF9F0A"), ("😌", "FFCC00"), ("☺️", "34C759"), ("🫠", "64D2FF"), ("🤢", "30B0C7"), ("🌋", "8B0000"), ("💨", "A9A9A9")]
+    static let poops = [
+        PoopOption(id: "poop_1", imageName: "poop_1", legacyValues: ["💨"]),
+        PoopOption(id: "poop_2", imageName: "poop_2", legacyValues: ["🤬"]),
+        PoopOption(id: "poop_3", imageName: "poop_3", legacyValues: ["😖"]),
+        PoopOption(id: "poop_4", imageName: "poop_4", legacyValues: ["😌"]),
+        PoopOption(id: "poop_5", imageName: "poop_5", legacyValues: ["☺️"]),
+        PoopOption(id: "poop_6", imageName: "poop_6", legacyValues: ["🫠", "🤢"]),
+        PoopOption(id: "poop_7", imageName: "poop_7", legacyValues: ["🌋"]),
+        PoopOption(id: "poop_8", imageName: "poop_8", legacyValues: []),
+    ]
+    static let poopColors = [
+        PoopColorOption(id: "light_gray", color: Color(hex: "E4D7B4"), label: "Light Tan"),
+        PoopColorOption(id: "yellow", color: Color(hex: "FFCC33"), label: "Yellow"),
+        PoopColorOption(id: "tan", color: Color(hex: "CFA766"), label: "Tan"),
+        PoopColorOption(id: "coffee", color: Color(hex: "7B4308"), label: "Coffee"),
+        PoopColorOption(id: "dark_brown", color: Color(hex: "5A3217"), label: "Dark Brown"),
+        PoopColorOption(id: "green", color: Color(hex: "005A21"), label: "Green"),
+        PoopColorOption(id: "black", color: Color(hex: "000000"), label: "Black"),
+        PoopColorOption(id: "red", color: Color(hex: "C70000"), label: "Red"),
+    ]
+}
+
+private struct PoopOption: Hashable {
+    let id: String
+    let imageName: String
+    let legacyValues: [String]
+}
+
+private struct PoopColorOption: Hashable {
+    let id: String
+    let color: Color
+    let label: String
 }
 
 private enum Formatters {
@@ -74,6 +105,67 @@ private enum ImageDecoder {
     }
 }
 
+private enum PoopAssetLoader {
+    nonisolated static func image(named name: String) -> UIImage? {
+        if let image = UIImage(named: name) {
+            return image
+        }
+        guard let path = Bundle.main.path(forResource: name, ofType: "png", inDirectory: "BristolStoolScale") else {
+            return nil
+        }
+        return UIImage(contentsOfFile: path)
+    }
+}
+
+private enum PoopOptionResolver {
+    static let defaultColorID = "coffee"
+
+    static func normalizedID(for value: String) -> String {
+        if DataSets.poops.contains(where: { $0.id == value }) {
+            return value
+        }
+        return DataSets.poops.first(where: { $0.legacyValues.contains(value) })?.id ?? "poop_4"
+    }
+
+    static func option(for value: String) -> PoopOption? {
+        let normalizedID = normalizedID(for: value)
+        return DataSets.poops.first(where: { $0.id == normalizedID })
+    }
+}
+
+private struct PoopRecordValue {
+    let shapeID: String
+    let colorID: String
+
+    init(shapeID: String, colorID: String) {
+        self.shapeID = PoopOptionResolver.normalizedID(for: shapeID)
+        if DataSets.poopColors.contains(where: { $0.id == colorID }) {
+            self.colorID = colorID
+        } else {
+            self.colorID = PoopOptionResolver.defaultColorID
+        }
+    }
+
+    init(detail: String) {
+        let parts = detail.split(separator: "|", maxSplits: 1).map(String.init)
+        self.shapeID = PoopOptionResolver.normalizedID(for: parts.first ?? detail)
+        if let rawColorID = parts.dropFirst().first,
+           DataSets.poopColors.contains(where: { $0.id == rawColorID }) {
+            self.colorID = rawColorID
+        } else {
+            self.colorID = PoopOptionResolver.defaultColorID
+        }
+    }
+
+    var detailValue: String {
+        "\(shapeID)|\(colorID)"
+    }
+
+    var colorOption: PoopColorOption? {
+        DataSets.poopColors.first(where: { $0.id == colorID })
+    }
+}
+
 // MARK: - 1. 数据模型与状态管理
 struct LogItem: Identifiable, Hashable {
     let id: UUID
@@ -81,11 +173,12 @@ struct LogItem: Identifiable, Hashable {
     let detail: String
     let note: String
     let duration: Int
-    let imageData: Data?
+    let imageDataList: [Data]
     let date: Date
+    var imageData: Data? { imageDataList.first }
     
-    init(id: UUID = UUID(), type: LogType, detail: String, note: String, duration: Int, imageData: Data?, date: Date) {
-        self.id = id; self.type = type; self.detail = detail; self.note = note; self.duration = duration; self.imageData = imageData; self.date = date
+    init(id: UUID = UUID(), type: LogType, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
+        self.id = id; self.type = type; self.detail = detail; self.note = note; self.duration = duration; self.imageDataList = imageDataList; self.date = date
     }
 }
 
@@ -141,18 +234,18 @@ final class AppViewModel: ObservableObject {
 
     init() { prefillDummyData() }
     
-    func addLog(type: LogType, detail: String, note: String, duration: Int, imageData: Data?, date: Date) {
-        let newLog = LogItem(type: type, detail: detail, note: note, duration: duration, imageData: imageData, date: date)
+    func addLog(type: LogType, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
+        let newLog = LogItem(type: type, detail: detail, note: note, duration: duration, imageDataList: imageDataList, date: date)
         let insertIndex = logs.insertionIndex(of: newLog) { $0.date > $1.date }
         logs.insert(newLog, at: insertIndex)
         insertIntoDayIndex(newLog)
         generateAIToast(for: type, detail: detail)
     }
     
-    func updateLog(id: UUID, detail: String, note: String, duration: Int, imageData: Data?, date: Date) {
+    func updateLog(id: UUID, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
         if let index = logs.firstIndex(where: { $0.id == id }) {
             let oldLog = logs[index]
-            let updatedLog = LogItem(id: id, type: oldLog.type, detail: detail, note: note, duration: duration, imageData: imageData, date: date)
+            let updatedLog = LogItem(id: id, type: oldLog.type, detail: detail, note: note, duration: duration, imageDataList: imageDataList, date: date)
             logs.remove(at: index)
             removeFromDayIndex(oldLog)
             let insertIndex = logs.insertionIndex(of: updatedLog) { $0.date > $1.date }
@@ -224,7 +317,7 @@ final class AppViewModel: ObservableObject {
     
     private func prefillDummyData() {
         let past = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-        addLog(type: .water, detail: "500ml", note: "起床第一杯", duration: 0, imageData: nil, date: past)
+        addLog(type: .water, detail: "500ml", note: "起床第一杯", duration: 0, imageDataList: [], date: past)
     }
 }
 
@@ -267,7 +360,7 @@ struct GridBackground: View {
 }
 
 struct ImagePickerView: UIViewControllerRepresentable {
-    @Binding var selectedImage: Data?; @Environment(\.presentationMode) private var presentationMode
+    @Binding var selectedImages: [Data]; @Environment(\.presentationMode) private var presentationMode
     var sourceType: UIImagePickerController.SourceType = .photoLibrary
     func makeUIViewController(context: Context) -> UIImagePickerController { let picker = UIImagePickerController(); picker.delegate = context.coordinator; picker.sourceType = sourceType; picker.allowsEditing = true; return picker }
     func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
@@ -275,7 +368,9 @@ struct ImagePickerView: UIViewControllerRepresentable {
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         var parent: ImagePickerView; init(_ parent: ImagePickerView) { self.parent = parent }
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage { parent.selectedImage = image.jpegData(compressionQuality: 0.6) }
+            if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage, let data = image.jpegData(compressionQuality: 0.6) {
+                parent.selectedImages.append(data)
+            }
             parent.presentationMode.wrappedValue.dismiss()
         }
     }
@@ -374,13 +469,13 @@ private extension LogType {
     var sheetHeight: CGFloat {
         switch self {
         case .water:
-            return 540
+            return 600
         case .drink:
-            return 560
+            return 620
         case .food:
-            return 660
+            return 720
         case .poop:
-            return 610
+            return 760
         }
     }
 }
@@ -388,15 +483,15 @@ private extension LogType {
 // MARK: - 4. 超紧凑输入面板集合
 struct BaseInputSheet<Content: View>: View {
     var title: String; var isEditMode: Bool; var btnColor: Color
-    @Binding var note: String; @Binding var logTime: Date; @Binding var duration: Int; @Binding var imageData: Data?
+    @Binding var note: String; @Binding var logTime: Date; @Binding var duration: Int; @Binding var imageDataList: [Data]
     var showDuration: Bool = false; var showPhotoPicker: Bool = true; var action: () -> Void; var content: Content
     @Environment(\.dismiss) var dismiss
     
     @State private var showActionSheet = false; @State private var showImagePicker = false; @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     private let previewSize: CGFloat = 50
     
-    init(title: String, isEditMode: Bool, btnColor: Color, note: Binding<String>, logTime: Binding<Date>, duration: Binding<Int>, imageData: Binding<Data?>, showDuration: Bool = false, showPhotoPicker: Bool = true, action: @escaping () -> Void, @ViewBuilder content: () -> Content) {
-        self.title = title; self.isEditMode = isEditMode; self.btnColor = btnColor; self._note = note; self._logTime = logTime; self._duration = duration; self._imageData = imageData; self.showDuration = showDuration; self.showPhotoPicker = showPhotoPicker; self.action = action; self.content = content()
+    init(title: String, isEditMode: Bool, btnColor: Color, note: Binding<String>, logTime: Binding<Date>, duration: Binding<Int>, imageDataList: Binding<[Data]>, showDuration: Bool = false, showPhotoPicker: Bool = true, action: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.title = title; self.isEditMode = isEditMode; self.btnColor = btnColor; self._note = note; self._logTime = logTime; self._duration = duration; self._imageDataList = imageDataList; self.showDuration = showDuration; self.showPhotoPicker = showPhotoPicker; self.action = action; self.content = content()
     }
     
     var body: some View {
@@ -405,7 +500,7 @@ struct BaseInputSheet<Content: View>: View {
                 .font(.system(size: 26, weight: .black, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-                .padding(.top, 32)
+                .padding(.top, 40)
 
             content
 
@@ -413,22 +508,13 @@ struct BaseInputSheet<Content: View>: View {
 
             HStack(spacing: 12) {
                 if showPhotoPicker {
-                    if let data = imageData, let uiImage = ImageDecoder.image(from: data) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
+                    Button(action: { showActionSheet = true }) {
+                        Image(systemName: "camera.fill")
+                            .font(.title2)
+                            .foregroundColor(.gray)
                             .frame(width: previewSize, height: previewSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(Button(action: { imageData = nil }) { Image(systemName: "xmark.circle.fill").foregroundColor(.white).background(Color.black.clipShape(Circle())) }.offset(x: 5, y: -5), alignment: .topTrailing)
-                    } else {
-                        Button(action: { showActionSheet = true }) {
-                            Image(systemName: "camera.fill")
-                                .font(.title2)
-                                .foregroundColor(.gray)
-                                .frame(width: previewSize, height: previewSize)
-                                .background(AppTheme.lightGray)
-                                .cornerRadius(12)
-                        }
+                            .background(AppTheme.lightGray)
+                            .cornerRadius(12)
                     }
                 }
 
@@ -437,6 +523,25 @@ struct BaseInputSheet<Content: View>: View {
                     .frame(height: previewSize)
                     .background(AppTheme.lightGray)
                     .cornerRadius(12)
+            }
+
+            if showPhotoPicker && !imageDataList.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(imageDataList.indices, id: \.self) { index in
+                            if let uiImage = ImageDecoder.image(from: imageDataList[index]) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 54, height: 54)
+                                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                                    .overlay(Button(action: { imageDataList.remove(at: index) }) { Image(systemName: "xmark.circle.fill").foregroundColor(.white).background(Color.black.clipShape(Circle())) }.offset(x: 5, y: -5), alignment: .topTrailing)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .frame(height: 58)
             }
 
             Button(action: {
@@ -458,7 +563,7 @@ struct BaseInputSheet<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .top)
         .background(Color.white)
         .confirmationDialog("Photo Source", isPresented: $showActionSheet, titleVisibility: .hidden) { Button("Take Photo") { imageSourceType = .camera; showImagePicker = true }; Button("Photo Library") { imageSourceType = .photoLibrary; showImagePicker = true }; Button("Cancel", role: .cancel) {} }
-        .sheet(isPresented: $showImagePicker) { ImagePickerView(selectedImage: $imageData, sourceType: imageSourceType).ignoresSafeArea() }
+        .sheet(isPresented: $showImagePicker) { ImagePickerView(selectedImages: $imageDataList, sourceType: imageSourceType).ignoresSafeArea() }
     }
 
     private var metadataPanel: some View {
@@ -532,15 +637,15 @@ struct BaseInputSheet<Content: View>: View {
 // 4.1 喝水 (横向紧凑版)
 struct WaterInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var ml: Int = 300; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoData: Data? = nil
+    @State private var ml: Int = 300; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     private var formattedML: String {
         Formatters.wholeNumber.string(from: NSNumber(value: ml)) ?? "\(ml)"
     }
     var body: some View {
-        BaseInputSheet(title: "HYDRATE!", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageData: $photoData, action: {
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: "\(ml)ml", note: note, duration: dur, imageData: photoData, date: time) }
-            else { viewModel.addLog(type: .water, detail: "\(ml)ml", note: note, duration: dur, imageData: photoData, date: time) }
+        BaseInputSheet(title: "HYDRATE!", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, action: {
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: "\(ml)ml", note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .water, detail: "\(ml)ml", note: note, duration: dur, imageDataList: photoDataList, date: time) }
         }) {
             VStack(spacing: 16) {
                 LazyVGrid(columns: LayoutMetrics.waterGridColumns, spacing: 10) {
@@ -565,7 +670,7 @@ struct WaterInputSheet: View {
         if let log = editLog {
             ml = Int(log.detail.replacingOccurrences(of: "ml", with: "")) ?? 300
             note = log.note
-            photoData = log.imageData
+            photoDataList = log.imageDataList
         }
     }
 }
@@ -573,15 +678,15 @@ struct WaterInputSheet: View {
 // 4.2 饮料 (紧凑胶囊版)
 struct DrinkInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var selected: String = "Coffee"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoData: Data? = nil
+    @State private var selected: String = "Coffee"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     var body: some View {
-        BaseInputSheet(title: "CHOOSE POISON", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageData: $photoData, action: {
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
-            else { viewModel.addLog(type: .drink, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
+        BaseInputSheet(title: "CHOOSE POISON", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, action: {
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .drink, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
         }) {
             LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
-                ForEach(DataSets.drinks, id: \.0) { drink in Button(action: { selected = drink.0 }) { HStack { Text(drink.1).font(.system(size: 20)); Text(drink.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == drink.0 ? .white : .black) }.frame(maxWidth: .infinity).frame(height: 50).modernStyle(color: selected == drink.0 ? Color(hex: drink.2) : AppTheme.lightGray, radius: 16) }.buttonStyle(ScaleButtonStyle()) }
+                ForEach(DataSets.drinks, id: \.0) { drink in Button(action: { selected = drink.0 }) { HStack { Text(drink.1).font(.system(size: 20)); Text(drink.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == drink.0 ? .white : .black) }.frame(maxWidth: .infinity).frame(height: 50).modernStyle(color: selected == drink.0 ? AppTheme.drink : AppTheme.lightGray, radius: 16) }.buttonStyle(ScaleButtonStyle()) }
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -593,7 +698,7 @@ struct DrinkInputSheet: View {
         if let log = editLog {
             selected = log.detail
             note = log.note
-            photoData = log.imageData
+            photoDataList = log.imageDataList
         }
     }
 }
@@ -601,15 +706,15 @@ struct DrinkInputSheet: View {
 // 4.3 食物 (紧凑胶囊版)
 struct FoodInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var selected: String = "Burger🍔"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 15; @State private var photoData: Data? = nil
+    @State private var selected: String = "Burger🍔"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 15; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     var body: some View {
-        BaseInputSheet(title: "FEED ME", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageData: $photoData, showDuration: true, action: {
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
-            else { viewModel.addLog(type: .food, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
+        BaseInputSheet(title: "FEED ME", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, showDuration: true, action: {
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .food, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
         }) {
             LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
-                ForEach(DataSets.foods, id: \.0) { food in Button(action: { selected = food.0 }) { Text(food.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == food.0 ? .white : .black).frame(maxWidth: .infinity).frame(height: 46).modernStyle(color: selected == food.0 ? Color(hex: food.1) : AppTheme.lightGray, radius: 100) }.buttonStyle(ScaleButtonStyle()) }
+                ForEach(DataSets.foods, id: \.0) { food in Button(action: { selected = food.0 }) { Text(food.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == food.0 ? .white : .black).frame(maxWidth: .infinity).frame(height: 46).modernStyle(color: selected == food.0 ? AppTheme.food : AppTheme.lightGray, radius: 100) }.buttonStyle(ScaleButtonStyle()) }
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -622,7 +727,7 @@ struct FoodInputSheet: View {
             selected = log.detail
             note = log.note
             dur = log.duration
-            photoData = log.imageData
+            photoDataList = log.imageDataList
         }
     }
 }
@@ -630,15 +735,63 @@ struct FoodInputSheet: View {
 // 4.4 排泄 (紧凑方块版)
 struct PoopInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var selected: String = "😌"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 5; @State private var photoData: Data? = nil
+    @State private var selectedShapeID: String = "poop_4"; @State private var selectedColorID: String = PoopOptionResolver.defaultColorID; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 5; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     var body: some View {
-        BaseInputSheet(title: "CAPTAIN'S LOG", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageData: $photoData, showDuration: true, showPhotoPicker: false, action: {
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
-            else { viewModel.addLog(type: .poop, detail: selected, note: note, duration: dur, imageData: photoData, date: time) }
+        BaseInputSheet(title: "CAPTAIN'S LOG", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, showDuration: true, showPhotoPicker: false, action: {
+            let detailValue = PoopRecordValue(shapeID: selectedShapeID, colorID: selectedColorID).detailValue
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: detailValue, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .poop, detail: detailValue, note: note, duration: dur, imageDataList: photoDataList, date: time) }
         }) {
-            LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
-                ForEach(DataSets.poops, id: \.0) { poop in Button(action: { selected = poop.0 }) { Text(poop.0).font(.system(size: 28)).frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit).modernStyle(color: selected == poop.0 ? Color(hex: poop.1) : AppTheme.lightGray, radius: 16) }.buttonStyle(ScaleButtonStyle()) }
+            VStack(alignment: .leading, spacing: 14) {
+                LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
+                    ForEach(DataSets.poops, id: \.id) { poop in
+                        Button(action: { selectedShapeID = poop.id }) {
+                            ZStack {
+                                if let image = PoopAssetLoader.image(named: poop.imageName) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .padding(8)
+                                } else {
+                                    Text(poop.id)
+                                        .font(.system(size: 12, weight: .bold))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .modernStyle(color: selectedShapeID == poop.id ? AppTheme.poop : AppTheme.lightGray, radius: 16)
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("COLOR")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.gray)
+                    LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
+                        ForEach(DataSets.poopColors, id: \.id) { poopColor in
+                            Button(action: { selectedColorID = poopColor.id }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(selectedColorID == poopColor.id ? AppTheme.poop.opacity(0.24) : AppTheme.lightGray)
+                                    Circle()
+                                        .fill(poopColor.color)
+                                        .frame(width: 26, height: 26)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(selectedColorID == poopColor.id ? AppTheme.poop : Color.clear, lineWidth: 2)
+                                )
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                            .accessibilityLabel(Text(poopColor.label))
+                        }
+                    }
+                }
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -648,10 +801,12 @@ struct PoopInputSheet: View {
         didInitialize = true
         time = initialDate
         if let log = editLog {
-            selected = log.detail
+            let recordValue = PoopRecordValue(detail: log.detail)
+            selectedShapeID = recordValue.shapeID
+            selectedColorID = recordValue.colorID
             note = log.note
             dur = log.duration
-            photoData = log.imageData
+            photoDataList = log.imageDataList
         }
     }
 }
@@ -689,11 +844,18 @@ struct LogRowView: View {
     let log: LogItem
     private let timeText: String
     private let image: UIImage?
+    private let poopImage: UIImage?
+    private let poopColor: PoopColorOption?
 
     init(log: LogItem) {
         self.log = log
         self.timeText = Formatters.logTime.string(from: log.date)
         self.image = log.imageData.flatMap(ImageDecoder.image(from:))
+        let poopRecord = log.type == .poop ? PoopRecordValue(detail: log.detail) : nil
+        self.poopImage = poopRecord.flatMap { record in
+            DataSets.poops.first(where: { $0.id == record.shapeID }).flatMap { PoopAssetLoader.image(named: $0.imageName) }
+        }
+        self.poopColor = poopRecord?.colorOption
     }
 
     var body: some View {
@@ -702,7 +864,28 @@ struct LogRowView: View {
                 Text(log.type.icon).font(.system(size: 24)).padding(12).background(Color.white.opacity(0.3)).clipShape(Circle())
                 VStack(alignment: .leading) { Text(log.type.title).font(.system(size: 17, weight: .bold)).foregroundColor(log.type == .poop ? .black : .white); Text(timeText).font(.system(size: 12, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8)) }
                 Spacer()
-                VStack(alignment: .trailing) { Text(log.detail).font(.system(size: 14, weight: .bold)).padding(.horizontal, 15).padding(.vertical, 8).background(Color.white).foregroundColor(.black).cornerRadius(100); if log.duration > 0 { Text("\(log.duration) mins").font(.system(size: 12, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8)) } }
+                VStack(alignment: .trailing) {
+                    if let poopImage {
+                        HStack(spacing: 8) {
+                            Image(uiImage: poopImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 46, height: 32)
+                            if let poopColor {
+                                Circle()
+                                    .fill(poopColor.color)
+                                    .frame(width: 14, height: 14)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white)
+                        .cornerRadius(100)
+                    } else {
+                        Text(log.detail).font(.system(size: 14, weight: .bold)).padding(.horizontal, 15).padding(.vertical, 8).background(Color.white).foregroundColor(.black).cornerRadius(100)
+                    }
+                    if log.duration > 0 { Text("\(log.duration) mins").font(.system(size: 12, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8)) }
+                }
             }
             if let image { Image(uiImage: image).resizable().scaledToFill().frame(height: 150).frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 16)).padding(.top, 5) }
             if !log.note.isEmpty { Text("Note: \(log.note)").font(.system(size: 14, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.8) : .white.opacity(0.9)).padding(.top, 5) }
@@ -862,11 +1045,18 @@ struct CalendarLogCardView: View {
     let log: LogItem
     private let timeText: String
     private let image: UIImage?
+    private let poopImage: UIImage?
+    private let poopColor: PoopColorOption?
 
     init(log: LogItem) {
         self.log = log
         self.timeText = Formatters.logTime.string(from: log.date)
         self.image = log.imageData.flatMap(ImageDecoder.image(from:))
+        let poopRecord = log.type == .poop ? PoopRecordValue(detail: log.detail) : nil
+        self.poopImage = poopRecord.flatMap { record in
+            DataSets.poops.first(where: { $0.id == record.shapeID }).flatMap { PoopAssetLoader.image(named: $0.imageName) }
+        }
+        self.poopColor = poopRecord?.colorOption
     }
 
     var body: some View {
@@ -881,11 +1071,25 @@ struct CalendarLogCardView: View {
                         .foregroundColor(.gray)
                 }
 
-                Text(log.detail)
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundColor(AppTheme.black)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.72)
+                if let poopImage {
+                    HStack(spacing: 8) {
+                        Image(uiImage: poopImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 42)
+                        if let poopColor {
+                            Circle()
+                                .fill(poopColor.color)
+                                .frame(width: 14, height: 14)
+                        }
+                    }
+                } else {
+                    Text(log.detail)
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundColor(AppTheme.black)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
+                }
 
                 if log.duration > 0 {
                     Text("\(log.duration) min")
