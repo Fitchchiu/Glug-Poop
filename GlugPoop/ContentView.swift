@@ -648,17 +648,20 @@ struct WaterInputSheet: View {
             else { viewModel.addLog(type: .water, detail: "\(ml)ml", note: note, duration: dur, imageDataList: photoDataList, date: time) }
         }) {
             VStack(spacing: 16) {
-                LazyVGrid(columns: LayoutMetrics.waterGridColumns, spacing: 10) {
-                    ForEach(DataSets.waterOptions, id: \.self) { val in Button(action: { ml = val }) { Text("\(val)ml").font(.system(size: 14, weight: .bold)).foregroundColor(ml == val ? .white : .black).frame(maxWidth: .infinity).frame(height: 40).modernStyle(color: ml == val ? AppTheme.water : AppTheme.lightGray, radius: 100) } }
+                HStack(spacing: 10) {
+                    ForEach(DataSets.waterOptions, id: \.self) { val in
+                        Button(action: { ml = val }) {
+                            Text("\(val)ml")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(ml == val ? .white : .black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .modernStyle(color: ml == val ? AppTheme.water : AppTheme.lightGray, radius: 100)
+                        }
+                    }
                 }
-                HStack {
-                    Text("\(formattedML) ml")
-                        .font(.system(size: 24, weight: .black, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .frame(width: 110, alignment: .leading)
-                    Slider(value: Binding(get: { Double(ml) }, set: { ml = Int($0) }), in: 0...1500, step: 50).tint(AppTheme.water)
-                }.padding(.horizontal, 10).padding(.vertical, 10).background(AppTheme.lightGray).cornerRadius(16)
+
+                WaterWavePicker(ml: $ml)
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -672,6 +675,165 @@ struct WaterInputSheet: View {
             note = log.note
             photoDataList = log.imageDataList
         }
+    }
+}
+
+struct WaterWavePicker: View {
+    @Binding var ml: Int
+    @State private var dragStartValue: Double?
+    @State private var dragTranslation: CGFloat = 0
+    private let range: ClosedRange<Double> = 0...1500
+    private let step: Double = 25
+    private let bars = Array(-30...30)
+    private let panelHeight: CGFloat = 168
+    private let waveHeight: CGFloat = 74
+
+    private var clampedValue: Double {
+        min(max(Double(ml), range.lowerBound), range.upperBound)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+                let width = proxy.size.width
+                let spacing = width / CGFloat(max(bars.count - 1, 1))
+                let centerShift = dragTranslation / max(spacing, 1)
+
+                ZStack(alignment: .top) {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    AppTheme.water.opacity(0.04),
+                                    AppTheme.water.opacity(0.12),
+                                    AppTheme.water.opacity(0.04)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+
+                    VStack(spacing: 14) {
+                        HStack {
+                            Text("0ml")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(AppTheme.black.opacity(0.26))
+                            Spacer()
+                            Text("1500ml")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(AppTheme.black.opacity(0.26))
+                        }
+
+                        scaleLabel(for: clampedValue)
+
+                        ZStack(alignment: .bottom) {
+                            HStack(alignment: .bottom, spacing: max(spacing * 0.08, 1.5)) {
+                                ForEach(bars, id: \.self) { index in
+                                    let shiftedIndex = Double(index) - Double(centerShift * 0.42)
+                                    let focus = focusStrength(for: Double(index))
+                                    let crest = crestStrength(for: index)
+                                    let fade = edgeFade(for: shiftedIndex)
+                                    let scale = edgeScale(for: shiftedIndex)
+                                    let height = 8 + (focus * 24) + (crest * 42)
+                                    let opacity = 0.08 + (focus * 0.62) + (crest * 0.26)
+
+                                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                        .fill(AppTheme.water.opacity(min(opacity, 0.95)))
+                                        .frame(width: max(spacing * 0.52, 3.2), height: height)
+                                        .scaleEffect(x: scale, y: scale, anchor: .bottom)
+                                        .opacity(fade)
+                                }
+                            }
+                            .offset(x: dragTranslation * 0.18)
+                            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.84), value: dragTranslation)
+                            .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.86), value: ml)
+                            .frame(height: waveHeight, alignment: .bottom)
+
+                            Capsule(style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.98),
+                                            AppTheme.water.opacity(0.88)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 3, height: 68)
+                                .shadow(color: AppTheme.water.opacity(0.22), radius: 4, x: 0, y: 1)
+                        }
+                        .frame(height: waveHeight, alignment: .bottom)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, 14)
+                }
+                .frame(height: panelHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .contentShape(Rectangle())
+                .gesture(dragGesture(width: width))
+            }
+        .frame(height: panelHeight)
+        .padding(.bottom, 8)
+    }
+
+    private func dragGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                if dragStartValue == nil {
+                    dragStartValue = clampedValue
+                }
+                dragTranslation = value.translation.width
+                let sensitivity = (range.upperBound - range.lowerBound) / max(Double(width) * 1.15, 1)
+                let delta = Double(value.translation.width) * sensitivity
+                let nextValue = min(max((dragStartValue ?? clampedValue) - delta, range.lowerBound), range.upperBound)
+                ml = Int((nextValue / step).rounded() * step)
+            }
+            .onEnded { _ in
+                dragStartValue = nil
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                    dragTranslation = 0
+                }
+            }
+    }
+
+    private func scaleLabel(for value: Double) -> some View {
+        Text("\(formattedValue(Int(min(max(value, range.lowerBound), range.upperBound))))ml")
+            .font(.system(size: 28, weight: .black, design: .rounded))
+            .foregroundColor(AppTheme.black)
+            .animation(.spring(response: 0.28, dampingFraction: 0.9), value: ml)
+    }
+
+    private func focusStrength(for index: Double) -> Double {
+        let distance = abs(index)
+        return max(0, 1 - distance / 24)
+    }
+
+    private func crestStrength(for index: Int) -> Double {
+        let cycle = abs(index) % 10
+        switch cycle {
+        case 0: return 1.0
+        case 1, 9: return 0.84
+        case 2, 8: return 0.66
+        case 3, 7: return 0.5
+        case 4, 6: return 0.28
+        default: return 0.14
+        }
+    }
+
+    private func edgeFade(for index: Double) -> Double {
+        let distance = abs(index)
+        return max(0.18, 1 - distance / 20)
+    }
+
+    private func edgeScale(for index: Double) -> CGFloat {
+        let distance = abs(index)
+        let normalized = max(0, 1 - distance / 22)
+        return CGFloat(0.78 + normalized * 0.22)
+    }
+
+    private func formattedValue(_ value: Int) -> String {
+        Formatters.wholeNumber.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }
 
