@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct GlugPoopApp: App {
+    @StateObject private var viewModel = AppViewModel(persistenceController: PersistenceController.shared)
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(viewModel)
         }
     }
 }

@@ -27,6 +27,22 @@ private enum LayoutMetrics {
 private enum DataSets {
     static let waterOptions = [100, 300, 500, 750, 1000]
     static let drinks = [("Coffee", "☕️", "9E7B62"), ("Boba", "🧋", "D4B59D"), ("Soda", "🥤", "FF5E3A"), ("Matcha", "🍵", "8EFA48"), ("Wine", "🍷", "800020"), ("Beer", "🍺", "F28E1C")]
+    static let drinkTemperatures = ["Cold", "Hot"]
+    static let drinkSugarLevels = ["Sugar Free", "Low", "Medium", "High"]
+    static let drinkCaffeineOptions = [
+        DrinkDetailOption(id: "no", icon: "leaf.fill", title: "No Caffeine", subtitle: "Gentle", usesSystemImage: true),
+        DrinkDetailOption(id: "yes", icon: "bolt.fill", title: "Caffeine", subtitle: "Boost", usesSystemImage: true),
+    ]
+    static let drinkTemperatureOptions = [
+        DrinkDetailOption(id: "Cold", icon: "snowflake", title: "Cold", subtitle: "Chilled", usesSystemImage: true),
+        DrinkDetailOption(id: "Hot", icon: "sun.max.fill", title: "Hot", subtitle: "Warm", usesSystemImage: true),
+    ]
+    static let drinkSugarOptions = [
+        DrinkDetailOption(id: "Sugar Free", icon: "drop", title: "Sugar Free", subtitle: "Clean", usesSystemImage: true),
+        DrinkDetailOption(id: "Low", icon: "drop.fill", title: "Low", subtitle: "Light", usesSystemImage: true),
+        DrinkDetailOption(id: "Medium", icon: "drop.triangle", title: "Medium", subtitle: "Balanced", usesSystemImage: true),
+        DrinkDetailOption(id: "High", icon: "aqi.high", title: "High", subtitle: "Sweet", usesSystemImage: true),
+    ]
     static let foods = [("Burger🍔", "FFCC00"), ("Salad🥗", "007AFF"), ("Pizza🍕", "FF2D55"), ("Sushi🍣", "34C759"), ("Tacos🌮", "FFCC00"), ("Ramen🍜", "007AFF"), ("Meat🥩", "FF2D55"), ("Sweet🍩", "AF52DE")]
     static let poops = [
         PoopOption(id: "poop_1", imageName: "poop_1", legacyValues: ["💨"]),
@@ -48,6 +64,12 @@ private enum DataSets {
         PoopColorOption(id: "black", color: Color(hex: "000000"), label: "Black"),
         PoopColorOption(id: "red", color: Color(hex: "C70000"), label: "Red"),
     ]
+    static let poopSymptoms = [
+        PoopSymptomOption(id: "comfortable", emoji: "😆", label: "舒畅"),
+        PoopSymptomOption(id: "constipation", emoji: "🤯", label: "便秘"),
+        PoopSymptomOption(id: "pain", emoji: "💥", label: "腹痛"),
+        PoopSymptomOption(id: "urgent", emoji: "😩", label: "紧急"),
+    ]
 }
 
 private struct PoopOption: Hashable {
@@ -60,6 +82,20 @@ private struct PoopColorOption: Hashable {
     let id: String
     let color: Color
     let label: String
+}
+
+private struct PoopSymptomOption: Hashable {
+    let id: String
+    let emoji: String
+    let label: String
+}
+
+private struct DrinkDetailOption: Hashable {
+    let id: String
+    let icon: String
+    let title: String
+    let subtitle: String
+    let usesSystemImage: Bool
 }
 
 private enum Formatters {
@@ -166,23 +202,163 @@ private struct PoopRecordValue {
     }
 }
 
+struct LogStructuredData: Hashable, Codable {
+    var waterML: Int?
+    var drinkType: String?
+    var drinkHasCaffeine: Bool?
+    var drinkTemperature: String?
+    var drinkSugarLevel: String?
+    var foodType: String?
+    var poopShapeID: String?
+    var poopColorID: String?
+    var poopSymptomID: String?
+    var poopHasEffort: Bool?
+    var poopHasPain: Bool?
+    var poopHasIncompleteFeeling: Bool?
+    var poopIsUrgent: Bool?
+
+    static func from(type: LogType, detail: String) -> LogStructuredData {
+        switch type {
+        case .water:
+            let waterML = Int(detail.replacingOccurrences(of: "ml", with: "")) ?? 0
+            return LogStructuredData(waterML: waterML)
+        case .drink:
+            return LogStructuredData(drinkType: detail)
+        case .food:
+            return LogStructuredData(foodType: detail)
+        case .poop:
+            let poopRecord = PoopRecordValue(detail: detail)
+            return LogStructuredData(
+                poopShapeID: poopRecord.shapeID,
+                poopColorID: poopRecord.colorID
+            )
+        }
+    }
+
+    var displayDetail: String {
+        if let waterML {
+            return "\(waterML)ml"
+        }
+        if let drinkType {
+            return drinkType
+        }
+        if let foodType {
+            return foodType
+        }
+        if let poopShapeID {
+            let colorID = poopColorID ?? PoopOptionResolver.defaultColorID
+            return PoopRecordValue(shapeID: poopShapeID, colorID: colorID).detailValue
+        }
+        return ""
+    }
+
+    init(
+        waterML: Int? = nil,
+        drinkType: String? = nil,
+        drinkHasCaffeine: Bool? = nil,
+        drinkTemperature: String? = nil,
+        drinkSugarLevel: String? = nil,
+        foodType: String? = nil,
+        poopShapeID: String? = nil,
+        poopColorID: String? = nil
+        ,
+        poopSymptomID: String? = nil,
+        poopHasEffort: Bool? = nil,
+        poopHasPain: Bool? = nil,
+        poopHasIncompleteFeeling: Bool? = nil,
+        poopIsUrgent: Bool? = nil
+    ) {
+        self.waterML = waterML
+        self.drinkType = drinkType
+        self.drinkHasCaffeine = drinkHasCaffeine
+        self.drinkTemperature = drinkTemperature
+        self.drinkSugarLevel = drinkSugarLevel
+        self.foodType = foodType
+        self.poopShapeID = poopShapeID
+        self.poopColorID = poopColorID
+        self.poopSymptomID = poopSymptomID
+        self.poopHasEffort = poopHasEffort
+        self.poopHasPain = poopHasPain
+        self.poopHasIncompleteFeeling = poopHasIncompleteFeeling
+        self.poopIsUrgent = poopIsUrgent
+    }
+
+    var resolvedPoopSymptomID: String? {
+        if let poopSymptomID {
+            return poopSymptomID
+        }
+        if poopIsUrgent == true { return "urgent" }
+        if poopHasPain == true { return "pain" }
+        if poopHasEffort == true || poopHasIncompleteFeeling == true { return "constipation" }
+        return nil
+    }
+}
+
 // MARK: - 1. 数据模型与状态管理
 struct LogItem: Identifiable, Hashable {
     let id: UUID
     let type: LogType
     let detail: String
+    let structuredData: LogStructuredData
     let note: String
     let duration: Int
-    let imageDataList: [Data]
+    let imageFileNames: [String]
     let date: Date
-    var imageData: Data? { imageDataList.first }
+    var imageDataList: [Data] { imageFileNames.compactMap(ImageFileStore.loadData(fileName:)) }
+    var imageData: Data? { imageFileNames.first.flatMap(ImageFileStore.loadData(fileName:)) }
+    var primaryDisplayText: String {
+        if !detail.isEmpty { return detail }
+        return structuredData.displayDetail
+    }
+    var primaryValueStyle: CardPrimaryValue.Style {
+        switch type {
+        case .water:
+            return .numeric
+        case .drink, .food:
+            return .label
+        case .poop:
+            return .label
+        }
+    }
+    var drinkSummaryTags: [String] {
+        guard type == .drink else { return [] }
+        var tags: [String] = []
+        if structuredData.drinkHasCaffeine == true { tags.append("Caffeine") }
+        if let drinkTemperature = structuredData.drinkTemperature { tags.append(drinkTemperature) }
+        if let drinkSugarLevel = structuredData.drinkSugarLevel { tags.append(drinkSugarLevel) }
+        return tags
+    }
+    var poopSymptomTags: [String] {
+        guard type == .poop else { return [] }
+        guard let symptomID = structuredData.resolvedPoopSymptomID,
+              let option = DataSets.poopSymptoms.first(where: { $0.id == symptomID }) else {
+            return []
+        }
+        return ["\(option.emoji) \(option.label)"]
+    }
     
-    init(id: UUID = UUID(), type: LogType, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
-        self.id = id; self.type = type; self.detail = detail; self.note = note; self.duration = duration; self.imageDataList = imageDataList; self.date = date
+    init(
+        id: UUID = UUID(),
+        type: LogType,
+        detail: String,
+        structuredData: LogStructuredData? = nil,
+        note: String,
+        duration: Int,
+        imageFileNames: [String],
+        date: Date
+    ) {
+        self.id = id
+        self.type = type
+        self.structuredData = structuredData ?? LogStructuredData.from(type: type, detail: detail)
+        self.detail = detail.isEmpty ? self.structuredData.displayDetail : detail
+        self.note = note
+        self.duration = duration
+        self.imageFileNames = imageFileNames
+        self.date = date
     }
 }
 
-enum LogType: CaseIterable {
+enum LogType: String, CaseIterable, Codable {
     case water, drink, food, poop
     var color: Color {
         switch self {
@@ -228,29 +404,76 @@ final class AppViewModel: ObservableObject {
     @Published var logs: [LogItem] = []
     @Published var vibeScore: Int = 70
     @Published var aiJudgeText: String = "\"今天表现平平，像个没有感情的产屎机器。🙄\""
+    @Published var hydrationGoalML: Int
     private let calendar = Calendar.current
+    private let persistenceController: PersistenceController
     private var logsByDay: [Date: [LogItem]] = [:]
     private var calendarGridCache: [MonthCacheKey: [Date?]] = [:]
 
-    init() { prefillDummyData() }
+    init(persistenceController: PersistenceController) {
+        self.persistenceController = persistenceController
+        self.hydrationGoalML = persistenceController.loadHydrationGoalML()
+        loadPersistedLogs()
+    }
     
-    func addLog(type: LogType, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
-        let newLog = LogItem(type: type, detail: detail, note: note, duration: duration, imageDataList: imageDataList, date: date)
-        let insertIndex = logs.insertionIndex(of: newLog) { $0.date > $1.date }
-        logs.insert(newLog, at: insertIndex)
-        insertIntoDayIndex(newLog)
+    func addLog(type: LogType, detail: String, structuredData: LogStructuredData? = nil, note: String, duration: Int, imageDataList: [Data], date: Date) {
+        let resolvedStructuredData = structuredData ?? LogStructuredData.from(type: type, detail: detail)
+        do {
+            let persistedLog = try persistenceController.upsertLog(
+                id: UUID(),
+                type: type,
+                detail: detail,
+                structuredData: resolvedStructuredData,
+                note: note,
+                duration: duration,
+                imageDataList: imageDataList,
+                date: date
+            )
+            let insertIndex = logs.insertionIndex(of: persistedLog) { $0.date > $1.date }
+            logs.insert(persistedLog, at: insertIndex)
+            insertIntoDayIndex(persistedLog)
+        } catch {
+            print("Failed to add log: \(error)")
+        }
         generateAIToast(for: type, detail: detail)
     }
     
-    func updateLog(id: UUID, detail: String, note: String, duration: Int, imageDataList: [Data], date: Date) {
+    func updateLog(id: UUID, detail: String, structuredData: LogStructuredData? = nil, note: String, duration: Int, imageDataList: [Data], date: Date) {
         if let index = logs.firstIndex(where: { $0.id == id }) {
             let oldLog = logs[index]
-            let updatedLog = LogItem(id: id, type: oldLog.type, detail: detail, note: note, duration: duration, imageDataList: imageDataList, date: date)
-            logs.remove(at: index)
-            removeFromDayIndex(oldLog)
-            let insertIndex = logs.insertionIndex(of: updatedLog) { $0.date > $1.date }
-            logs.insert(updatedLog, at: insertIndex)
-            insertIntoDayIndex(updatedLog)
+            let resolvedStructuredData = structuredData ?? LogStructuredData.from(type: oldLog.type, detail: detail)
+            do {
+                let updatedLog = try persistenceController.upsertLog(
+                    id: id,
+                    type: oldLog.type,
+                    detail: detail,
+                    structuredData: resolvedStructuredData,
+                    note: note,
+                    duration: duration,
+                    imageDataList: imageDataList,
+                    date: date
+                )
+                logs.remove(at: index)
+                removeFromDayIndex(oldLog)
+                let insertIndex = logs.insertionIndex(of: updatedLog) { $0.date > $1.date }
+                logs.insert(updatedLog, at: insertIndex)
+                insertIntoDayIndex(updatedLog)
+            } catch {
+                print("Failed to update log: \(error)")
+            }
+        }
+    }
+
+    func deleteLog(id: UUID) {
+        guard let index = logs.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        do {
+            try persistenceController.deleteLog(id: id)
+            let removedLog = logs.remove(at: index)
+            removeFromDayIndex(removedLog)
+        } catch {
+            print("Failed to delete log: \(error)")
         }
     }
     
@@ -298,6 +521,124 @@ final class AppViewModel: ObservableObject {
         logsByDay[calendar.startOfDay(for: date)]?.count ?? 0
     }
 
+    func totalWater(on date: Date) -> Int {
+        logs(for: date)
+            .filter { $0.type == .water }
+            .reduce(0) { $0 + ($1.structuredData.waterML ?? 0) }
+    }
+
+    func logsCount(from startDate: Date, to endDate: Date) -> Int {
+        logs.filter { $0.date >= startDate && $0.date <= endDate }.count
+    }
+
+    func logsGroupedByType(from startDate: Date, to endDate: Date) -> [LogType: Int] {
+        logs.reduce(into: [LogType: Int]()) { partialResult, log in
+            guard log.date >= startDate && log.date <= endDate else {
+                return
+            }
+            partialResult[log.type, default: 0] += 1
+        }
+    }
+
+    func poopLogs(from startDate: Date, to endDate: Date) -> [LogItem] {
+        logs.filter { $0.type == .poop && $0.date >= startDate && $0.date <= endDate }
+    }
+
+    func poopLogs(shapeID: String? = nil, colorID: String? = nil, from startDate: Date, to endDate: Date) -> [LogItem] {
+        poopLogs(from: startDate, to: endDate).filter { log in
+            let matchesShape = shapeID == nil || log.structuredData.poopShapeID == shapeID
+            let matchesColor = colorID == nil || log.structuredData.poopColorID == colorID
+            return matchesShape && matchesColor
+        }
+    }
+
+    func logs(of type: LogType, from startDate: Date, to endDate: Date) -> [LogItem] {
+        logs.filter { $0.type == type && $0.date >= startDate && $0.date <= endDate }
+    }
+
+    func waterSeries(from startDate: Date, to endDate: Date) -> [(date: Date, totalML: Int)] {
+        let days = dateSeries(from: startDate, to: endDate)
+        return days.map { day in
+            (date: day, totalML: totalWater(on: day))
+        }
+    }
+
+    func averageDailyWater(from startDate: Date, to endDate: Date) -> Int {
+        let series = waterSeries(from: startDate, to: endDate)
+        guard !series.isEmpty else { return 0 }
+        let total = series.reduce(0) { $0 + $1.totalML }
+        return Int((Double(total) / Double(series.count)).rounded())
+    }
+
+    func bestWaterDay(from startDate: Date, to endDate: Date) -> (date: Date, totalML: Int)? {
+        waterSeries(from: startDate, to: endDate).max { lhs, rhs in
+            lhs.totalML < rhs.totalML
+        }
+    }
+
+    func lowestWaterDay(from startDate: Date, to endDate: Date) -> (date: Date, totalML: Int)? {
+        waterSeries(from: startDate, to: endDate).min { lhs, rhs in
+            lhs.totalML < rhs.totalML
+        }
+    }
+
+    func poopShapeCounts(from startDate: Date, to endDate: Date) -> [String: Int] {
+        poopLogs(from: startDate, to: endDate).reduce(into: [String: Int]()) { partialResult, log in
+            let shapeID = log.structuredData.poopShapeID ?? "poop_4"
+            partialResult[shapeID, default: 0] += 1
+        }
+    }
+
+    func poopColorCounts(from startDate: Date, to endDate: Date) -> [String: Int] {
+        poopLogs(from: startDate, to: endDate).reduce(into: [String: Int]()) { partialResult, log in
+            let colorID = log.structuredData.poopColorID ?? PoopOptionResolver.defaultColorID
+            partialResult[colorID, default: 0] += 1
+        }
+    }
+
+    func consecutiveLoggingDays(through endDate: Date = Date()) -> Int {
+        var streak = 0
+        var currentDay = calendar.startOfDay(for: endDate)
+
+        while logCount(for: currentDay) > 0 {
+            streak += 1
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: currentDay) else {
+                break
+            }
+            currentDay = previousDay
+        }
+
+        return streak
+    }
+
+    func hydrationGoalHitRate(from startDate: Date, to endDate: Date, goalML: Int) -> Double {
+        let days = dateSeries(from: startDate, to: endDate)
+        guard !days.isEmpty else { return 0 }
+        let hitDays = days.filter { totalWater(on: $0) >= goalML }.count
+        return Double(hitDays) / Double(days.count)
+    }
+
+    func updateHydrationGoalML(_ value: Int) {
+        hydrationGoalML = value
+        persistenceController.saveHydrationGoalML(value)
+    }
+
+    private func dateSeries(from startDate: Date, to endDate: Date) -> [Date] {
+        var result: [Date] = []
+        var current = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+
+        while current <= end {
+            result.append(current)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else {
+                break
+            }
+            current = next
+        }
+
+        return result
+    }
+
     private func insertIntoDayIndex(_ log: LogItem) {
         let day = calendar.startOfDay(for: log.date)
         var dayLogs = logsByDay[day] ?? []
@@ -315,9 +656,73 @@ final class AppViewModel: ObservableObject {
         logsByDay[day] = dayLogs.isEmpty ? nil : dayLogs
     }
     
+    private func loadPersistedLogs() {
+        do {
+            let persistedLogs = try persistenceController.loadLogs()
+            if persistedLogs.isEmpty {
+                prefillDummyData()
+                return
+            }
+            logs = persistedLogs.sorted { $0.date > $1.date }
+            rebuildDayIndex()
+        } catch {
+            print("Failed to fetch persisted logs: \(error)")
+            logs = []
+            logsByDay = [:]
+        }
+    }
+
+    private func rebuildDayIndex() {
+        logsByDay = [:]
+        for log in logs {
+            insertIntoDayIndex(log)
+        }
+    }
+
     private func prefillDummyData() {
         let past = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         addLog(type: .water, detail: "500ml", note: "起床第一杯", duration: 0, imageDataList: [], date: past)
+    }
+}
+
+private enum RootTab: Hashable {
+    case records
+    case dashboard
+    case calendar
+    case stats
+}
+
+private enum StatsRange: String, CaseIterable, Hashable {
+    case week = "近7天"
+    case twoWeeks = "近14天"
+    case month = "近30天"
+
+    var days: Int {
+        switch self {
+        case .week: return 7
+        case .twoWeeks: return 14
+        case .month: return 30
+        }
+    }
+}
+
+enum StatsDetailContext: Identifiable, Hashable {
+    case day(Date)
+    case type(LogType, Date, Date)
+    case poopShape(String, Date, Date)
+    case poopColor(String, Date, Date)
+
+    var id: String {
+        switch self {
+        case .day(let date):
+            return "day-\(date.timeIntervalSince1970)"
+        case .type(let type, let startDate, let endDate):
+            return "type-\(type.rawValue)-\(startDate.timeIntervalSince1970)-\(endDate.timeIntervalSince1970)"
+        case .poopShape(let shapeID, let startDate, let endDate):
+            return "shape-\(shapeID)-\(startDate.timeIntervalSince1970)-\(endDate.timeIntervalSince1970)"
+        case .poopColor(let colorID, let startDate, let endDate):
+            return "color-\(colorID)-\(startDate.timeIntervalSince1970)-\(endDate.timeIntervalSince1970)"
+        }
     }
 }
 
@@ -335,6 +740,251 @@ extension View { func modernStyle(color: Color, radius: CGFloat = 32) -> some Vi
 
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View { configuration.label.scaleEffect(configuration.isPressed ? 0.95 : 1).animation(.spring(response: 0.4, dampingFraction: 0.6), value: configuration.isPressed) }
+}
+
+struct TogglePillRow<Value: Hashable>: View {
+    let title: String
+    let options: [(String, Value)]
+    @Binding var selection: Value
+    let themeColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.gray)
+            HStack(spacing: 10) {
+                ForEach(options, id: \.0) { option in
+                    Button(action: { selection = option.1 }) {
+                        Text(option.0)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(selection == option.1 ? .white : .black)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .modernStyle(color: selection == option.1 ? themeColor : AppTheme.lightGray, radius: 100)
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
+            }
+        }
+    }
+}
+
+struct FormSectionCard<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.gray)
+                .textCase(.uppercase)
+            content
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(AppTheme.lightGray.opacity(0.9))
+        )
+    }
+}
+
+struct SymptomToggleButton: View {
+    let title: String
+    @Binding var isOn: Bool
+    let themeColor: Color
+
+    var body: some View {
+        Button(action: { isOn.toggle() }) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(isOn ? .white : .black)
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .modernStyle(color: isOn ? themeColor : AppTheme.lightGray, radius: 16)
+        }
+        .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+struct TagFlowLayout: Layout {
+    var horizontalSpacing: CGFloat = 6
+    var verticalSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .greatestFiniteMagnitude
+        var currentRowWidth: CGFloat = 0
+        var currentRowHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+        var totalHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let nextWidth = currentRowWidth == 0 ? size.width : currentRowWidth + horizontalSpacing + size.width
+
+            if nextWidth > maxWidth, currentRowWidth > 0 {
+                totalWidth = max(totalWidth, currentRowWidth)
+                totalHeight += currentRowHeight + verticalSpacing
+                currentRowWidth = size.width
+                currentRowHeight = size.height
+            } else {
+                currentRowWidth = nextWidth
+                currentRowHeight = max(currentRowHeight, size.height)
+            }
+        }
+
+        totalWidth = max(totalWidth, currentRowWidth)
+        totalHeight += currentRowHeight
+        return CGSize(width: min(totalWidth, maxWidth), height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var origin = CGPoint(x: bounds.minX, y: bounds.minY)
+        var currentRowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let nextX = origin.x + size.width
+
+            if nextX > bounds.maxX, origin.x > bounds.minX {
+                origin.x = bounds.minX
+                origin.y += currentRowHeight + verticalSpacing
+                currentRowHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: origin.x, y: origin.y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
+
+            origin.x += size.width + horizontalSpacing
+            currentRowHeight = max(currentRowHeight, size.height)
+        }
+    }
+}
+
+struct SelectionDetailButton: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+    let themeColor: Color
+    var usesSystemImage: Bool = false
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Group {
+                if usesSystemImage {
+                    Image(systemName: icon)
+                } else {
+                    Text(icon)
+                }
+            }
+            .font(.system(size: 16, weight: .bold))
+
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Text(subtitle)
+                .font(.system(size: 10, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .opacity(0.72)
+        }
+        .foregroundColor(isSelected ? .white : AppTheme.black)
+        .frame(maxWidth: .infinity)
+        .frame(height: 68)
+        .modernStyle(color: isSelected ? themeColor : .white, radius: 16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isSelected ? themeColor.opacity(0.18) : Color.clear, lineWidth: 1)
+        )
+    }
+}
+
+struct CardMetaPill: View {
+    let text: String
+    let foregroundColor: Color
+    let backgroundColor: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(foregroundColor)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(backgroundColor)
+            .clipShape(Capsule())
+    }
+}
+
+struct CardPrimaryValue: View {
+    enum Style {
+        case numeric
+        case label
+    }
+
+    let text: String
+    let foregroundColor: Color
+    let backgroundColor: Color
+    var style: Style = .label
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .foregroundColor(foregroundColor)
+            .lineLimit(style == .numeric ? 1 : 2)
+            .minimumScaleFactor(0.76)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, style == .numeric ? 14 : 12)
+            .padding(.vertical, style == .numeric ? 12 : 10)
+            .background(backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var font: Font {
+        switch style {
+        case .numeric:
+            return .system(size: 22, weight: .black, design: .rounded)
+        case .label:
+            return .system(size: 19, weight: .black, design: .rounded)
+        }
+    }
+}
+
+struct InfoTagWrap: View {
+    let tags: [String]
+    let foregroundColor: Color
+    let backgroundColor: Color
+
+    var body: some View {
+        if !tags.isEmpty {
+            TagFlowLayout(horizontalSpacing: 6, verticalSpacing: 6) {
+                ForEach(tags, id: \.self) { tag in
+                    Text(tag)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(foregroundColor)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(backgroundColor)
+                        .clipShape(Capsule())
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 }
 
 struct GridBackground: View {
@@ -388,47 +1038,81 @@ enum SheetContext: Identifiable {
 
 // MARK: - 3. 主视图导航
 struct ContentView: View {
-    @StateObject var viewModel = AppViewModel()
-    @State private var showDashboard = false; @State private var showCalendar = false; @State private var activeSheet: SheetContext? = nil
+    @EnvironmentObject var viewModel: AppViewModel
+    @State private var selectedTab: RootTab = .records
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                GridBackground()
-                VStack(spacing: 30) {
-                    VStack(spacing: 5) {
-                        Text("VIBE CHECK").font(.system(size: 34, weight: .black, design: .rounded))
-                        Text("Log your daily inputs & outputs.").font(.system(size: 17, weight: .semibold)).foregroundColor(AppTheme.black.opacity(0.6))
-                    }.padding(.top, 50)
-                    Spacer()
-                    LazyVGrid(columns: LayoutMetrics.homeGridColumns, spacing: 20) {
-                        ForEach(LogType.allCases, id: \.self) { type in
-                            Button(action: { activeSheet = .new(type, Date()) }) {
-                                VStack(alignment: .leading) {
-                                    HStack { Spacer(); Text(type.icon).font(.system(size: 40)) }
-                                    Spacer()
-                                    Text(type.title).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundColor(type == .poop ? .black : .white)
-                                }.padding(20).aspectRatio(1, contentMode: .fill).modernStyle(color: type.color, radius: 32)
-                            }.buttonStyle(ScaleButtonStyle())
-                        }
-                    }.padding(.horizontal, 24)
-                    Spacer()
-                    HStack(spacing: 15) {
-                        Button(action: { showDashboard = true }) { Text("Dashboard").font(.system(size: 17, weight: .bold)).foregroundColor(.white).frame(maxWidth: .infinity).padding(.vertical, 18).modernStyle(color: AppTheme.black, radius: 100) }
-                        Button(action: { showCalendar = true }) { Text("Calendar").font(.system(size: 17, weight: .bold)).foregroundColor(.black).frame(maxWidth: .infinity).padding(.vertical, 18).modernStyle(color: AppTheme.lightGray, radius: 100) }
-                    }.padding(.horizontal, 24).padding(.bottom, 40)
+        TabView(selection: $selectedTab) {
+            RecordsHomeView()
+                .tabItem {
+                    Label("记录", systemImage: "square.grid.2x2.fill")
                 }
+                .tag(RootTab.records)
+
+            DashboardView(showBackButton: false)
+                .tabItem {
+                    Label("Dashboard", systemImage: "rectangle.3.group.bubble.left.fill")
+                }
+                .tag(RootTab.dashboard)
+
+            VibeCalendarView(showBackButton: false)
+                .tabItem {
+                    Label("日历", systemImage: "calendar")
+                }
+                .tag(RootTab.calendar)
+
+            StatsView()
+                .tabItem {
+                    Label("统计", systemImage: "chart.bar.fill")
+                }
+                .tag(RootTab.stats)
+        }
+    }
+}
+
+struct RecordsHomeView: View {
+    @EnvironmentObject var viewModel: AppViewModel
+    @State private var activeSheet: SheetContext? = nil
+
+    var body: some View {
+        ZStack {
+            GridBackground()
+            VStack(spacing: 30) {
+                VStack(spacing: 5) {
+                    Text("VIBE CHECK").font(.system(size: 34, weight: .black, design: .rounded))
+                    Text("Log your daily inputs & outputs.").font(.system(size: 17, weight: .semibold)).foregroundColor(AppTheme.black.opacity(0.6))
+                }
+                .padding(.top, 50)
+
+                Spacer()
+
+                LazyVGrid(columns: LayoutMetrics.homeGridColumns, spacing: 20) {
+                    ForEach(LogType.allCases, id: \.self) { type in
+                        Button(action: { activeSheet = .new(type, Date()) }) {
+                            VStack(alignment: .leading) {
+                                HStack { Spacer(); Text(type.icon).font(.system(size: 40)) }
+                                Spacer()
+                                Text(type.title).font(.system(size: 20, weight: .bold, design: .rounded)).foregroundColor(type == .poop ? .black : .white)
+                            }
+                            .padding(20)
+                            .aspectRatio(1, contentMode: .fill)
+                            .modernStyle(color: type.color, radius: 32)
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                Spacer()
             }
-            .navigationDestination(isPresented: $showDashboard) { DashboardView() }
-            .navigationDestination(isPresented: $showCalendar) { VibeCalendarView() }
-            .sheet(item: $activeSheet) { context in
-                InputSheetRouter(context: context)
-                    .presentationDetents([.height(context.sheetHeight)])
-                    .presentationDragIndicator(.visible)
-                    .presentationCornerRadius(28)
-                    .presentationBackground(.white)
-            }
-        }.environmentObject(viewModel)
+        }
+        .sheet(item: $activeSheet) { context in
+            InputSheetRouter(context: context)
+                .presentationDetents([.height(context.sheetHeight)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(.white)
+        }
     }
 }
 
@@ -471,11 +1155,11 @@ private extension LogType {
         case .water:
             return 600
         case .drink:
-            return 620
+            return 760
         case .food:
             return 720
         case .poop:
-            return 760
+            return 900
         }
     }
 }
@@ -484,90 +1168,117 @@ private extension LogType {
 struct BaseInputSheet<Content: View>: View {
     var title: String; var isEditMode: Bool; var btnColor: Color
     @Binding var note: String; @Binding var logTime: Date; @Binding var duration: Int; @Binding var imageDataList: [Data]
-    var showDuration: Bool = false; var showPhotoPicker: Bool = true; var action: () -> Void; var content: Content
+    var showDuration: Bool = false; var showPhotoPicker: Bool = true; var action: () -> Void; var deleteAction: (() -> Void)? = nil; var content: Content
     @Environment(\.dismiss) var dismiss
     
     @State private var showActionSheet = false; @State private var showImagePicker = false; @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var showDeleteConfirm = false
     private let previewSize: CGFloat = 50
     
-    init(title: String, isEditMode: Bool, btnColor: Color, note: Binding<String>, logTime: Binding<Date>, duration: Binding<Int>, imageDataList: Binding<[Data]>, showDuration: Bool = false, showPhotoPicker: Bool = true, action: @escaping () -> Void, @ViewBuilder content: () -> Content) {
-        self.title = title; self.isEditMode = isEditMode; self.btnColor = btnColor; self._note = note; self._logTime = logTime; self._duration = duration; self._imageDataList = imageDataList; self.showDuration = showDuration; self.showPhotoPicker = showPhotoPicker; self.action = action; self.content = content()
+    init(title: String, isEditMode: Bool, btnColor: Color, note: Binding<String>, logTime: Binding<Date>, duration: Binding<Int>, imageDataList: Binding<[Data]>, showDuration: Bool = false, showPhotoPicker: Bool = true, action: @escaping () -> Void, deleteAction: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title; self.isEditMode = isEditMode; self.btnColor = btnColor; self._note = note; self._logTime = logTime; self._duration = duration; self._imageDataList = imageDataList; self.showDuration = showDuration; self.showPhotoPicker = showPhotoPicker; self.action = action; self.deleteAction = deleteAction; self.content = content()
     }
     
     var body: some View {
-        VStack(spacing: 16) {
-            Text(title)
-                .font(.system(size: 26, weight: .black, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.top, 40)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                Text(title)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.top, 24)
 
-            content
+                content
 
-            metadataPanel
+                metadataPanel
 
-            HStack(spacing: 12) {
-                if showPhotoPicker {
-                    Button(action: { showActionSheet = true }) {
-                        Image(systemName: "camera.fill")
-                            .font(.title2)
-                            .foregroundColor(.gray)
-                            .frame(width: previewSize, height: previewSize)
-                            .background(AppTheme.lightGray)
-                            .cornerRadius(12)
-                    }
-                }
-
-                TextField("Note (Optional)", text: $note)
-                    .padding(.horizontal, 15)
-                    .frame(height: previewSize)
-                    .background(AppTheme.lightGray)
-                    .cornerRadius(12)
-            }
-
-            if showPhotoPicker && !imageDataList.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(imageDataList.indices, id: \.self) { index in
-                            if let uiImage = ImageDecoder.image(from: imageDataList[index]) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 54, height: 54)
-                                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                                    .overlay(Button(action: { imageDataList.remove(at: index) }) { Image(systemName: "xmark.circle.fill").foregroundColor(.white).background(Color.black.clipShape(Circle())) }.offset(x: 5, y: -5), alignment: .topTrailing)
-                            }
+                HStack(spacing: 12) {
+                    if showPhotoPicker {
+                        Button(action: { showActionSheet = true }) {
+                            Image(systemName: "camera.fill")
+                                .font(.title2)
+                                .foregroundColor(.gray)
+                                .frame(width: previewSize, height: previewSize)
+                                .background(AppTheme.lightGray)
+                                .cornerRadius(12)
                         }
                     }
-                    .padding(.horizontal, 2)
-                }
-                .frame(height: 58)
-            }
 
-            Button(action: {
-                action()
-                dismiss()
-            }) {
-                Text(isEditMode ? "UPDATE IT" : "LOG IT")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .modernStyle(color: btnColor, radius: 100)
+                    TextField("Note (Optional)", text: $note)
+                        .padding(.horizontal, 15)
+                        .frame(height: previewSize)
+                        .background(AppTheme.lightGray)
+                        .cornerRadius(12)
+                }
+
+                if showPhotoPicker && !imageDataList.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(imageDataList.indices, id: \.self) { index in
+                                if let uiImage = ImageDecoder.image(from: imageDataList[index]) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 54, height: 54)
+                                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                                        .overlay(Button(action: { imageDataList.remove(at: index) }) { Image(systemName: "xmark.circle.fill").foregroundColor(.white).background(Color.black.clipShape(Circle())) }.offset(x: 5, y: -5), alignment: .topTrailing)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
+                    .frame(height: 58)
+                }
+
+                Button(action: {
+                    action()
+                    dismiss()
+                }) {
+                    Text(isEditMode ? "UPDATE IT" : "LOG IT")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .modernStyle(color: btnColor, radius: 100)
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .padding(.bottom, 6)
+
+                if isEditMode, deleteAction != nil {
+                    Button(action: { showDeleteConfirm = true }) {
+                        Text("DELETE RECORD")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 100, style: .continuous)
+                                    .stroke(Color.red.opacity(0.24), lineWidth: 1.5)
+                            )
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
             }
-            .buttonStyle(ScaleButtonStyle())
-            .padding(.bottom, 6)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 18)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 18)
-        .frame(maxWidth: .infinity, alignment: .top)
         .background(Color.white)
         .confirmationDialog("Photo Source", isPresented: $showActionSheet, titleVisibility: .hidden) { Button("Take Photo") { imageSourceType = .camera; showImagePicker = true }; Button("Photo Library") { imageSourceType = .photoLibrary; showImagePicker = true }; Button("Cancel", role: .cancel) {} }
+        .confirmationDialog("Delete this record?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                deleteAction?()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone.")
+        }
         .sheet(isPresented: $showImagePicker) { ImagePickerView(selectedImages: $imageDataList, sourceType: imageSourceType).ignoresSafeArea() }
     }
 
     private var metadataPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(showDuration ? "Time & Duration" : "Time")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(.gray)
@@ -646,6 +1357,8 @@ struct WaterInputSheet: View {
         BaseInputSheet(title: "HYDRATE!", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, action: {
             if let log = editLog { viewModel.updateLog(id: log.id, detail: "\(ml)ml", note: note, duration: dur, imageDataList: photoDataList, date: time) }
             else { viewModel.addLog(type: .water, detail: "\(ml)ml", note: note, duration: dur, imageDataList: photoDataList, date: time) }
+        }, deleteAction: editLog.map { log in
+            { viewModel.deleteLog(id: log.id) }
         }) {
             VStack(spacing: 16) {
                 HStack(spacing: 10) {
@@ -671,7 +1384,7 @@ struct WaterInputSheet: View {
         didInitialize = true
         time = initialDate
         if let log = editLog {
-            ml = Int(log.detail.replacingOccurrences(of: "ml", with: "")) ?? 300
+            ml = log.structuredData.waterML ?? 300
             note = log.note
             photoDataList = log.imageDataList
         }
@@ -840,15 +1553,107 @@ struct WaterWavePicker: View {
 // 4.2 饮料 (紧凑胶囊版)
 struct DrinkInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var selected: String = "Coffee"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoDataList: [Data] = []
+    @State private var selected: String = "Coffee"; @State private var hasCaffeine = false; @State private var drinkTemperature = "Cold"; @State private var sugarLevel = "Medium"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 0; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     var body: some View {
         BaseInputSheet(title: "CHOOSE POISON", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, action: {
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
-            else { viewModel.addLog(type: .drink, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            let structuredData = LogStructuredData(
+                drinkType: selected,
+                drinkHasCaffeine: hasCaffeine,
+                drinkTemperature: drinkTemperature,
+                drinkSugarLevel: sugarLevel
+            )
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, structuredData: structuredData, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .drink, detail: selected, structuredData: structuredData, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+        }, deleteAction: editLog.map { log in
+            { viewModel.deleteLog(id: log.id) }
         }) {
-            LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
-                ForEach(DataSets.drinks, id: \.0) { drink in Button(action: { selected = drink.0 }) { HStack { Text(drink.1).font(.system(size: 20)); Text(drink.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == drink.0 ? .white : .black) }.frame(maxWidth: .infinity).frame(height: 50).modernStyle(color: selected == drink.0 ? AppTheme.drink : AppTheme.lightGray, radius: 16) }.buttonStyle(ScaleButtonStyle()) }
+            VStack(alignment: .leading, spacing: 14) {
+                FormSectionCard(title: "Drink Type") {
+                    LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
+                        ForEach(DataSets.drinks, id: \.0) { drink in
+                            Button(action: { selected = drink.0 }) {
+                                HStack(spacing: 8) {
+                                    Text(drink.1).font(.system(size: 20))
+                                    Text(drink.0)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundColor(selected == drink.0 ? .white : .black)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .modernStyle(color: selected == drink.0 ? AppTheme.drink : .white, radius: 16)
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                        }
+                    }
+                }
+
+                FormSectionCard(title: "Drink Details") {
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("CAFFEINE")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.gray)
+                            LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
+                                ForEach(DataSets.drinkCaffeineOptions, id: \.id) { option in
+                                    Button(action: { hasCaffeine = option.id == "yes" }) {
+                                        SelectionDetailButton(
+                                            icon: option.icon,
+                                            title: option.title,
+                                            subtitle: option.subtitle,
+                                            isSelected: hasCaffeine == (option.id == "yes"),
+                                            themeColor: AppTheme.drink,
+                                            usesSystemImage: option.usesSystemImage
+                                        )
+                                    }
+                                    .buttonStyle(ScaleButtonStyle())
+                                }
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("TEMP")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.gray)
+                            LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
+                                ForEach(DataSets.drinkTemperatureOptions, id: \.id) { option in
+                                    Button(action: { drinkTemperature = option.id }) {
+                                        SelectionDetailButton(
+                                            icon: option.icon,
+                                            title: option.title,
+                                            subtitle: option.subtitle,
+                                            isSelected: drinkTemperature == option.id,
+                                            themeColor: AppTheme.drink,
+                                            usesSystemImage: option.usesSystemImage
+                                        )
+                                    }
+                                    .buttonStyle(ScaleButtonStyle())
+                                }
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("SUGAR")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.gray)
+                            LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
+                                ForEach(DataSets.drinkSugarOptions, id: \.id) { option in
+                                    Button(action: { sugarLevel = option.id }) {
+                                        SelectionDetailButton(
+                                            icon: option.icon,
+                                            title: option.title,
+                                            subtitle: option.subtitle,
+                                            isSelected: sugarLevel == option.id,
+                                            themeColor: AppTheme.drink,
+                                            usesSystemImage: option.usesSystemImage
+                                        )
+                                    }
+                                    .buttonStyle(ScaleButtonStyle())
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -858,7 +1663,10 @@ struct DrinkInputSheet: View {
         didInitialize = true
         time = initialDate
         if let log = editLog {
-            selected = log.detail
+            selected = log.structuredData.drinkType ?? log.detail
+            hasCaffeine = log.structuredData.drinkHasCaffeine ?? false
+            drinkTemperature = log.structuredData.drinkTemperature ?? "Cold"
+            sugarLevel = log.structuredData.drinkSugarLevel ?? "Medium"
             note = log.note
             photoDataList = log.imageDataList
         }
@@ -874,6 +1682,8 @@ struct FoodInputSheet: View {
         BaseInputSheet(title: "FEED ME", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, showDuration: true, action: {
             if let log = editLog { viewModel.updateLog(id: log.id, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
             else { viewModel.addLog(type: .food, detail: selected, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+        }, deleteAction: editLog.map { log in
+            { viewModel.deleteLog(id: log.id) }
         }) {
             LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
                 ForEach(DataSets.foods, id: \.0) { food in Button(action: { selected = food.0 }) { Text(food.0).font(.system(size: 15, weight: .bold)).foregroundColor(selected == food.0 ? .white : .black).frame(maxWidth: .infinity).frame(height: 46).modernStyle(color: selected == food.0 ? AppTheme.food : AppTheme.lightGray, radius: 100) }.buttonStyle(ScaleButtonStyle()) }
@@ -886,7 +1696,7 @@ struct FoodInputSheet: View {
         didInitialize = true
         time = initialDate
         if let log = editLog {
-            selected = log.detail
+            selected = log.structuredData.foodType ?? log.detail
             note = log.note
             dur = log.duration
             photoDataList = log.imageDataList
@@ -897,47 +1707,53 @@ struct FoodInputSheet: View {
 // 4.4 排泄 (紧凑方块版)
 struct PoopInputSheet: View {
     @EnvironmentObject var viewModel: AppViewModel; var editLog: LogItem?; var initialDate: Date
-    @State private var selectedShapeID: String = "poop_4"; @State private var selectedColorID: String = PoopOptionResolver.defaultColorID; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 5; @State private var photoDataList: [Data] = []
+    @State private var selectedShapeID: String = "poop_4"; @State private var selectedColorID: String = PoopOptionResolver.defaultColorID; @State private var selectedSymptomID: String = "comfortable"; @State private var note: String = ""; @State private var time: Date = Date(); @State private var dur: Int = 5; @State private var photoDataList: [Data] = []
     @State private var didInitialize = false
     var body: some View {
         BaseInputSheet(title: "CAPTAIN'S LOG", isEditMode: editLog != nil, btnColor: Color(hex: "1C1C1E"), note: $note, logTime: $time, duration: $dur, imageDataList: $photoDataList, showDuration: true, showPhotoPicker: false, action: {
             let detailValue = PoopRecordValue(shapeID: selectedShapeID, colorID: selectedColorID).detailValue
-            if let log = editLog { viewModel.updateLog(id: log.id, detail: detailValue, note: note, duration: dur, imageDataList: photoDataList, date: time) }
-            else { viewModel.addLog(type: .poop, detail: detailValue, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            let structuredData = LogStructuredData(
+                poopShapeID: selectedShapeID,
+                poopColorID: selectedColorID,
+                poopSymptomID: selectedSymptomID
+            )
+            if let log = editLog { viewModel.updateLog(id: log.id, detail: detailValue, structuredData: structuredData, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+            else { viewModel.addLog(type: .poop, detail: detailValue, structuredData: structuredData, note: note, duration: dur, imageDataList: photoDataList, date: time) }
+        }, deleteAction: editLog.map { log in
+            { viewModel.deleteLog(id: log.id) }
         }) {
             VStack(alignment: .leading, spacing: 14) {
-                LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
-                    ForEach(DataSets.poops, id: \.id) { poop in
-                        Button(action: { selectedShapeID = poop.id }) {
-                            ZStack {
-                                if let image = PoopAssetLoader.image(named: poop.imageName) {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .padding(8)
-                                } else {
-                                    Text(poop.id)
-                                        .font(.system(size: 12, weight: .bold))
+                FormSectionCard(title: "Shape") {
+                    LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
+                        ForEach(DataSets.poops, id: \.id) { poop in
+                            Button(action: { selectedShapeID = poop.id }) {
+                                ZStack {
+                                    if let image = PoopAssetLoader.image(named: poop.imageName) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .padding(8)
+                                    } else {
+                                        Text(poop.id)
+                                            .font(.system(size: 12, weight: .bold))
+                                    }
                                 }
+                                .frame(maxWidth: .infinity)
+                                .aspectRatio(1, contentMode: .fit)
+                                .modernStyle(color: selectedShapeID == poop.id ? AppTheme.poop : .white, radius: 16)
                             }
-                            .frame(maxWidth: .infinity)
-                            .aspectRatio(1, contentMode: .fit)
-                            .modernStyle(color: selectedShapeID == poop.id ? AppTheme.poop : AppTheme.lightGray, radius: 16)
+                            .buttonStyle(ScaleButtonStyle())
                         }
-                        .buttonStyle(ScaleButtonStyle())
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("COLOR")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.gray)
+                FormSectionCard(title: "Color") {
                     LazyVGrid(columns: LayoutMetrics.poopGridColumns, spacing: 10) {
                         ForEach(DataSets.poopColors, id: \.id) { poopColor in
                             Button(action: { selectedColorID = poopColor.id }) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(selectedColorID == poopColor.id ? AppTheme.poop.opacity(0.24) : AppTheme.lightGray)
+                                        .fill(selectedColorID == poopColor.id ? AppTheme.poop.opacity(0.22) : Color.white)
                                     Circle()
                                         .fill(poopColor.color)
                                         .frame(width: 26, height: 26)
@@ -954,6 +1770,26 @@ struct PoopInputSheet: View {
                         }
                     }
                 }
+
+                FormSectionCard(title: "Symptoms") {
+                    LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 10) {
+                        ForEach(DataSets.poopSymptoms, id: \.id) { symptom in
+                            Button(action: { selectedSymptomID = symptom.id }) {
+                                HStack(spacing: 8) {
+                                    Text(symptom.emoji)
+                                        .font(.system(size: 18))
+                                    Text(symptom.label)
+                                        .font(.system(size: 13, weight: .bold))
+                                }
+                                .foregroundColor(selectedSymptomID == symptom.id ? .white : .black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .modernStyle(color: selectedSymptomID == symptom.id ? AppTheme.poop : .white, radius: 16)
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                        }
+                    }
+                }
             }
         }.onAppear(perform: initializeIfNeeded)
     }
@@ -963,9 +1799,9 @@ struct PoopInputSheet: View {
         didInitialize = true
         time = initialDate
         if let log = editLog {
-            let recordValue = PoopRecordValue(detail: log.detail)
-            selectedShapeID = recordValue.shapeID
-            selectedColorID = recordValue.colorID
+            selectedShapeID = log.structuredData.poopShapeID ?? "poop_4"
+            selectedColorID = log.structuredData.poopColorID ?? PoopOptionResolver.defaultColorID
+            selectedSymptomID = log.structuredData.resolvedPoopSymptomID ?? "comfortable"
             note = log.note
             dur = log.duration
             photoDataList = log.imageDataList
@@ -976,20 +1812,106 @@ struct PoopInputSheet: View {
 // MARK: - 5. Dashboard 与 列表组件 保持原样 (节约篇幅)
 struct DashboardView: View {
     @EnvironmentObject var viewModel: AppViewModel; @Environment(\.dismiss) var dismiss; @State private var activeSheet: SheetContext? = nil
+    var showBackButton: Bool = true
     var body: some View {
         let todayLogs = viewModel.logs(for: Date())
+        let waterTotal = todayLogs.reduce(0) { $0 + ($1.structuredData.waterML ?? 0) }
+        let drinkCount = todayLogs.filter { $0.type == .drink }.count
+        let poopCount = todayLogs.filter { $0.type == .poop }.count
         ZStack {
             Color.white.ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 25) {
-                    HStack { Button(action: { dismiss() }) { Image(systemName: "arrow.left").font(.system(size: 20, weight: .bold)).foregroundColor(.black).padding(14).background(AppTheme.lightGray).clipShape(Circle()) }; Spacer() }.padding(.top, 10).padding(.horizontal, 24)
-                    VStack(alignment: .leading, spacing: 5) { Text("TODAY!").font(.system(size: 34, weight: .black, design: .rounded)); Text("今天过得像个人样吗？").font(.system(size: 17, weight: .semibold)).foregroundColor(.gray) }.padding(.horizontal, 24)
-                    Text("TODAY'S LOGS").font(.system(size: 20, weight: .bold, design: .rounded)).padding(.top, 10).padding(.horizontal, 24)
-                    if todayLogs.isEmpty { Text("No logs today.").foregroundColor(.gray).padding(.horizontal, 24) }
-                    else { LazyVStack(spacing: 16) { ForEach(todayLogs) { log in Button(action: { activeSheet = .edit(log) }) { LogRowView(log: log) }.buttonStyle(ScaleButtonStyle()) } }.padding(.horizontal, 24).padding(.bottom, 150) }
+                VStack(alignment: .leading, spacing: 22) {
+                    if showBackButton {
+                        HStack { Button(action: { dismiss() }) { Image(systemName: "arrow.left").font(.system(size: 20, weight: .bold)).foregroundColor(.black).padding(14).background(AppTheme.lightGray).clipShape(Circle()) }; Spacer() }.padding(.top, 10).padding(.horizontal, 24)
+                    } else {
+                        Spacer().frame(height: 10)
+                    }
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TODAY!")
+                                .font(.system(size: 34, weight: .black, design: .rounded))
+                            Text("今天过得像个人样吗？")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.gray.opacity(0.86))
+                        }
+
+                        HStack(spacing: 10) {
+                            CardMetaPill(
+                                text: "\(todayLogs.count) logs",
+                                foregroundColor: AppTheme.black,
+                                backgroundColor: AppTheme.lightGray
+                            )
+                            CardMetaPill(
+                                text: "\(waterTotal)ml water",
+                                foregroundColor: AppTheme.water,
+                                backgroundColor: AppTheme.water.opacity(0.12)
+                            )
+                            if drinkCount > 0 {
+                                CardMetaPill(
+                                    text: "\(drinkCount) drinks",
+                                    foregroundColor: AppTheme.drink,
+                                    backgroundColor: AppTheme.drink.opacity(0.12)
+                                )
+                            }
+                            if poopCount > 0 {
+                                CardMetaPill(
+                                    text: "\(poopCount) poop",
+                                    foregroundColor: AppTheme.black,
+                                    backgroundColor: AppTheme.poop.opacity(0.28)
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("TODAY'S LOGS")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppTheme.black)
+
+                        if todayLogs.isEmpty {
+                            Text("No logs today.")
+                                .foregroundColor(.gray)
+                        } else {
+                            LazyVStack(spacing: 16) {
+                                ForEach(todayLogs) { log in
+                                    Button(action: { activeSheet = .edit(log) }) {
+                                        LogRowView(log: log)
+                                    }
+                                    .buttonStyle(ScaleButtonStyle())
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 4)
+                    .padding(.bottom, 156)
                 }
             }
-            VStack { Spacer(); HStack(alignment: .top) { Text(viewModel.aiJudgeText).font(.system(size: 17, weight: .medium)).foregroundColor(.black).padding(20) }.frame(maxWidth: .infinity, alignment: .leading).background(.ultraThinMaterial).cornerRadius(24).shadow(color: Color.black.opacity(0.08), radius: 20, y: 10).padding(.horizontal, 24).padding(.bottom, 40) }.ignoresSafeArea(.keyboard)
+            VStack {
+                Spacer()
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "text.bubble.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(AppTheme.black.opacity(0.7))
+                        .padding(10)
+                        .background(Color.white.opacity(0.72))
+                        .clipShape(Circle())
+                    Text(viewModel.aiJudgeText)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .shadow(color: Color.black.opacity(0.08), radius: 20, y: 10)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+            }
+            .ignoresSafeArea(.keyboard)
         }
         .navigationBarHidden(true)
         .sheet(item: $activeSheet) { context in
@@ -1013,7 +1935,7 @@ struct LogRowView: View {
         self.log = log
         self.timeText = Formatters.logTime.string(from: log.date)
         self.image = log.imageData.flatMap(ImageDecoder.image(from:))
-        let poopRecord = log.type == .poop ? PoopRecordValue(detail: log.detail) : nil
+        let poopRecord = log.type == .poop ? PoopRecordValue(shapeID: log.structuredData.poopShapeID ?? "poop_4", colorID: log.structuredData.poopColorID ?? PoopOptionResolver.defaultColorID) : nil
         self.poopImage = poopRecord.flatMap { record in
             DataSets.poops.first(where: { $0.id == record.shapeID }).flatMap { PoopAssetLoader.image(named: $0.imageName) }
         }
@@ -1023,41 +1945,87 @@ struct LogRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(log.type.icon).font(.system(size: 24)).padding(12).background(Color.white.opacity(0.3)).clipShape(Circle())
-                VStack(alignment: .leading) { Text(log.type.title).font(.system(size: 17, weight: .bold)).foregroundColor(log.type == .poop ? .black : .white); Text(timeText).font(.system(size: 12, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8)) }
+                Text(log.type.icon)
+                    .font(.system(size: 23))
+                    .padding(11)
+                    .background(Color.white.opacity(0.24))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(log.type.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(log.type == .poop ? .black : .white)
+                    Text(timeText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8))
+                }
                 Spacer()
-                VStack(alignment: .trailing) {
-                    if let poopImage {
-                        HStack(spacing: 8) {
-                            Image(uiImage: poopImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 46, height: 32)
-                            if let poopColor {
-                                Circle()
-                                    .fill(poopColor.color)
-                                    .frame(width: 14, height: 14)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.white)
-                        .cornerRadius(100)
-                    } else {
-                        Text(log.detail).font(.system(size: 14, weight: .bold)).padding(.horizontal, 15).padding(.vertical, 8).background(Color.white).foregroundColor(.black).cornerRadius(100)
-                    }
-                    if log.duration > 0 { Text("\(log.duration) mins").font(.system(size: 12, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.6) : .white.opacity(0.8)) }
+                if log.duration > 0 {
+                    CardMetaPill(
+                        text: "\(log.duration) min",
+                        foregroundColor: log.type == .poop ? AppTheme.black : .white,
+                        backgroundColor: log.type == .poop ? Color.white.opacity(0.72) : Color.white.opacity(0.18)
+                    )
                 }
             }
-            if let image { Image(uiImage: image).resizable().scaledToFill().frame(height: 150).frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 16)).padding(.top, 5) }
-            if !log.note.isEmpty { Text("Note: \(log.note)").font(.system(size: 14, weight: .medium)).foregroundColor(log.type == .poop ? .black.opacity(0.8) : .white.opacity(0.9)).padding(.top, 5) }
-        }.padding(16).modernStyle(color: log.type.color, radius: 28)
+
+            if let poopImage {
+                HStack(spacing: 8) {
+                    Image(uiImage: poopImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 46, height: 32)
+                    if let poopColor {
+                        Circle()
+                            .fill(poopColor.color)
+                            .frame(width: 14, height: 14)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white)
+                .cornerRadius(100)
+            } else {
+                CardPrimaryValue(
+                    text: log.primaryDisplayText,
+                    foregroundColor: log.type == .poop ? AppTheme.black : .white,
+                    backgroundColor: log.type == .poop ? Color.white.opacity(0.9) : Color.white.opacity(0.18),
+                    style: log.primaryValueStyle
+                )
+            }
+
+            if !log.drinkSummaryTags.isEmpty || !log.poopSymptomTags.isEmpty || !log.note.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    if !log.drinkSummaryTags.isEmpty {
+                        InfoTagWrap(
+                            tags: log.drinkSummaryTags,
+                            foregroundColor: log.type == .poop ? AppTheme.black : .white,
+                            backgroundColor: log.type == .poop ? Color.white.opacity(0.72) : Color.white.opacity(0.22)
+                        )
+                    }
+                    if !log.poopSymptomTags.isEmpty {
+                        InfoTagWrap(
+                            tags: log.poopSymptomTags,
+                            foregroundColor: AppTheme.black,
+                            backgroundColor: Color.white.opacity(0.72)
+                        )
+                    }
+                    if !log.note.isEmpty {
+                        Text("Note: \(log.note)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(log.type == .poop ? .black.opacity(0.76) : .white.opacity(0.88))
+                            .lineLimit(3)
+                    }
+                }
+            }
+            if let image { Image(uiImage: image).resizable().scaledToFill().frame(height: 140).frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 16)) }
+        }.padding(15).modernStyle(color: log.type.color, radius: 28)
     }
 }
 
 // MARK: - 6. 日历看板
 struct VibeCalendarView: View {
     @EnvironmentObject var viewModel: AppViewModel; @Environment(\.dismiss) var dismiss; @State private var currentDate = Date(); @State private var selectedDate = Calendar.current.startOfDay(for: Date()); @State private var activeSheet: SheetContext? = nil
+    var showBackButton: Bool = true
     let daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     private let calendar = Calendar.current
     var body: some View {
@@ -1066,7 +2034,33 @@ struct VibeCalendarView: View {
         ZStack {
             Color.white.ignoresSafeArea()
             VStack(spacing: 20) {
-                HStack { Button(action: { dismiss() }) { Image(systemName: "arrow.left").font(.system(size: 20, weight: .bold)).foregroundColor(.black).padding(14).background(AppTheme.lightGray).clipShape(Circle()) }; Spacer(); HStack(spacing: 20) { Button(action: { changeMonth(by: -1) }) { Image(systemName: "chevron.left").font(.title3.bold()).foregroundColor(.black) }; Text(monthYearString(from: currentDate)).font(.system(size: 20, weight: .black, design: .rounded)).frame(width: 120); Button(action: { changeMonth(by: 1) }) { Image(systemName: "chevron.right").font(.title3.bold()).foregroundColor(.black) } } }.padding(.horizontal, 24).padding(.top, 10)
+                HStack {
+                    if showBackButton {
+                        Button(action: { dismiss() }) { Image(systemName: "arrow.left").font(.system(size: 20, weight: .bold)).foregroundColor(.black).padding(14).background(AppTheme.lightGray).clipShape(Circle()) }
+                    }
+                    Spacer()
+                    HStack(spacing: 14) {
+                        Button(action: { changeMonth(by: -1) }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundColor(.black)
+                                .frame(width: 34, height: 34)
+                                .background(AppTheme.lightGray)
+                                .clipShape(Circle())
+                        }
+                        Text(monthYearString(from: currentDate))
+                            .font(.system(size: 19, weight: .black, design: .rounded))
+                            .frame(width: 126)
+                        Button(action: { changeMonth(by: 1) }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundColor(.black)
+                                .frame(width: 34, height: 34)
+                                .background(AppTheme.lightGray)
+                                .clipShape(Circle())
+                        }
+                    }
+                }.padding(.horizontal, 24).padding(.top, 10)
                 HStack { ForEach(daysOfWeek, id: \.self) { day in Text(day).font(.system(size: 12, weight: .bold)).foregroundColor(.gray).frame(maxWidth: .infinity) } }.padding(.horizontal, 16)
                 LazyVGrid(columns: LayoutMetrics.calendarColumns, spacing: 10) {
                     ForEach(days.indices, id: \.self) { index in
@@ -1111,6 +2105,509 @@ struct VibeCalendarView: View {
     func monthYearString(from date: Date) -> String { Formatters.monthYear.string(from: date).uppercased() }
 }
 
+struct StatsView: View {
+    @EnvironmentObject var viewModel: AppViewModel
+    private let calendar = Calendar.current
+    @State private var selectedRange: StatsRange = .week
+    @State private var activeDetailContext: StatsDetailContext?
+
+    var body: some View {
+        let today = Date()
+        let rangeStart = calendar.date(byAdding: .day, value: -(selectedRange.days - 1), to: calendar.startOfDay(for: today)) ?? today
+        let rangeEnd = today
+        let countsByType = viewModel.logsGroupedByType(from: rangeStart, to: rangeEnd)
+        let poopLogs = viewModel.poopLogs(from: rangeStart, to: rangeEnd)
+        let totalRecords = countsByType.values.reduce(0, +)
+        let waterSeries = viewModel.waterSeries(from: rangeStart, to: rangeEnd)
+        let poopShapeCounts = viewModel.poopShapeCounts(from: rangeStart, to: rangeEnd)
+        let poopColorCounts = viewModel.poopColorCounts(from: rangeStart, to: rangeEnd)
+        let hydrationHitRate = viewModel.hydrationGoalHitRate(from: rangeStart, to: rangeEnd, goalML: viewModel.hydrationGoalML)
+        let streakDays = viewModel.consecutiveLoggingDays(through: today)
+        let averageDailyWater = viewModel.averageDailyWater(from: rangeStart, to: rangeEnd)
+        let bestWaterDay = viewModel.bestWaterDay(from: rangeStart, to: rangeEnd)
+        let lowestWaterDay = viewModel.lowestWaterDay(from: rangeStart, to: rangeEnd)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("STATS")
+                        .font(.system(size: 34, weight: .black, design: .rounded))
+                    Text("核心数据先做基础统计，不做复杂分析。")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+
+                Picker("Stats Range", selection: $selectedRange) {
+                    ForEach(StatsRange.allCases, id: \.self) { range in
+                        Text(range.rawValue).tag(range)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("喝水目标")
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                        Spacer()
+                        Text("\(viewModel.hydrationGoalML)ml")
+                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .foregroundColor(AppTheme.water)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            viewModel.updateHydrationGoalML(max(500, viewModel.hydrationGoalML - 250))
+                        }) {
+                            Image(systemName: "minus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(AppTheme.black)
+                                .frame(width: 42, height: 42)
+                                .background(AppTheme.lightGray)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+
+                        Slider(
+                            value: Binding(
+                                get: { Double(viewModel.hydrationGoalML) },
+                                set: { newValue in
+                                    let roundedValue = Int((newValue / 250).rounded() * 250)
+                                    viewModel.updateHydrationGoalML(min(max(roundedValue, 500), 4000))
+                                }
+                            ),
+                            in: 500...4000,
+                            step: 250
+                        )
+                        .tint(AppTheme.water)
+
+                        Button(action: {
+                            viewModel.updateHydrationGoalML(min(4000, viewModel.hydrationGoalML + 250))
+                        }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 42, height: 42)
+                                .background(AppTheme.water)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+
+                    Text("范围 500ml - 4000ml，步进 250ml")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+                .padding(18)
+                .background(AppTheme.water.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(.horizontal, 24)
+
+                LazyVGrid(columns: LayoutMetrics.pairGridColumns, spacing: 14) {
+                    StatsCard(
+                        title: "今日喝水",
+                        value: "\(viewModel.totalWater(on: today))ml",
+                        subtitle: "目标 \(viewModel.hydrationGoalML)ml",
+                        color: AppTheme.water
+                    )
+                    StatsCard(
+                        title: "\(selectedRange.rawValue)记录",
+                        value: "\(totalRecords)",
+                        subtitle: "所有类型总次数",
+                        color: AppTheme.black
+                    )
+                    StatsCard(
+                        title: "\(selectedRange.rawValue)排便",
+                        value: "\(poopLogs.count)",
+                        subtitle: "用于观察频次",
+                        color: AppTheme.poop
+                    )
+                    StatsCard(
+                        title: "今日记录数",
+                        value: "\(viewModel.logCount(for: today))",
+                        subtitle: "当前日期全部记录",
+                        color: AppTheme.food
+                    )
+                    StatsCard(
+                        title: "连续记录",
+                        value: "\(streakDays)天",
+                        subtitle: "截至今天的连续天数",
+                        color: AppTheme.drink
+                    )
+                    StatsCard(
+                        title: "喝水达标率",
+                        value: "\(Int((hydrationHitRate * 100).rounded()))%",
+                        subtitle: "\(selectedRange.rawValue)达到 \(viewModel.hydrationGoalML)ml",
+                        color: AppTheme.water
+                    )
+                }
+                .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(selectedRange.rawValue)喝水趋势")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                    WaterTrendCard(series: waterSeries) { date in
+                        activeDetailContext = .day(date)
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(selectedRange.rawValue)喝水摘要")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+
+                    HStack(alignment: .top, spacing: 14) {
+                        SummaryMetricCard(
+                            title: "平均每日",
+                            value: "\(averageDailyWater)ml",
+                            subtitle: "按当前区间天数平均"
+                        )
+                        SummaryMetricCard(
+                            title: "最佳一天",
+                            value: bestWaterDay.map { "\($0.totalML)ml" } ?? "0ml",
+                            subtitle: bestWaterDay.map { shortStatsLabel(for: $0.date) } ?? "-"
+                        )
+                        SummaryMetricCard(
+                            title: "最低一天",
+                            value: lowestWaterDay.map { "\($0.totalML)ml" } ?? "0ml",
+                            subtitle: lowestWaterDay.map { shortStatsLabel(for: $0.date) } ?? "-"
+                        )
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(selectedRange.rawValue)类型分布")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+
+                    ForEach(LogType.allCases, id: \.self) { type in
+                        let count = countsByType[type, default: 0]
+                        Button(action: {
+                            guard count > 0 else { return }
+                            activeDetailContext = .type(type, rangeStart, rangeEnd)
+                        }) {
+                            HStack(spacing: 12) {
+                                Text(type.icon)
+                                    .font(.system(size: 22))
+                                    .frame(width: 28)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(type.title)
+                                            .font(.system(size: 14, weight: .bold))
+                                        Spacer()
+                                        Text("\(count)")
+                                            .font(.system(size: 14, weight: .black))
+                                    }
+
+                                    GeometryReader { proxy in
+                                        ZStack(alignment: .leading) {
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .fill(AppTheme.lightGray)
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .fill(type.color)
+                                                .frame(width: max(proxy.size.width * CGFloat(totalRecords == 0 ? 0 : Double(count) / Double(totalRecords)), totalRecords == 0 ? 0 : 12))
+                                        }
+                                    }
+                                    .frame(height: 10)
+                                }
+                            }
+                            .padding(14)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(ScaleButtonStyle())
+                    }
+                }
+                .padding(18)
+                .background(AppTheme.lightGray)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(.horizontal, 24)
+
+                HStack(alignment: .top, spacing: 14) {
+                    DistributionCard(
+                        title: "排便形状分布",
+                        rows: DataSets.poops.map { poop in
+                            let count = poopShapeCounts[poop.id, default: 0]
+                            return DistributionRow(icon: poop.id, imageName: poop.imageName, color: nil, value: count)
+                        },
+                        onSelectRow: { row in
+                            guard let shapeID = row.icon, row.value > 0 else { return }
+                            activeDetailContext = .poopShape(shapeID, rangeStart, rangeEnd)
+                        }
+                    )
+                    DistributionCard(
+                        title: "排便颜色分布",
+                        rows: DataSets.poopColors.map { poopColor in
+                            let count = poopColorCounts[poopColor.id, default: 0]
+                            return DistributionRow(icon: poopColor.id, imageName: nil, color: poopColor.color, value: count)
+                        },
+                        onSelectRow: { row in
+                            guard let colorID = row.icon, row.value > 0 else { return }
+                            activeDetailContext = .poopColor(colorID, rangeStart, rangeEnd)
+                        }
+                    )
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(Color.white.ignoresSafeArea())
+        .sheet(item: $activeDetailContext) { context in
+            StatsLogsSheet(context: context)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(.white)
+        }
+    }
+
+    private func shortStatsLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
+    }
+}
+
+struct StatsCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.gray)
+            Text(value)
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundColor(color == AppTheme.poop ? AppTheme.black : color)
+            Text(subtitle)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.gray)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 122, alignment: .topLeading)
+        .padding(16)
+        .background(color.opacity(color == AppTheme.black ? 0.08 : 0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+struct SummaryMetricCard: View {
+    let title: String
+    let value: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.gray)
+            Text(value)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundColor(AppTheme.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(subtitle)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.gray)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+        .padding(14)
+        .background(AppTheme.lightGray)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+struct WaterTrendCard: View {
+    let series: [(date: Date, totalML: Int)]
+    let onSelectDate: (Date) -> Void
+
+    var body: some View {
+        let maxValue = max(series.map(\.totalML).max() ?? 0, 1)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .lastTextBaseline) {
+                Text("\(series.map(\.totalML).reduce(0, +))ml")
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                Text("累计")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.gray)
+            }
+
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(Array(series.enumerated()), id: \.offset) { _, item in
+                    Button(action: {
+                        onSelectDate(item.date)
+                    }) {
+                        VStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(item.totalML == 0 ? AppTheme.lightGray : AppTheme.water)
+                                .frame(height: max(10, CGFloat(item.totalML) / CGFloat(maxValue) * 120))
+
+                            Text(shortLabel(for: item.date))
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.gray)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .bottom)
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
+            }
+            .frame(height: 150, alignment: .bottom)
+        }
+        .padding(18)
+        .background(AppTheme.water.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func shortLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
+    }
+}
+
+struct StatsLogsSheet: View {
+    let context: StatsDetailContext
+    @EnvironmentObject var viewModel: AppViewModel
+    @State private var activeSheet: SheetContext? = nil
+    private let calendar = Calendar.current
+
+    var body: some View {
+        let records = resolvedLogs
+
+        NavigationStack {
+            ZStack {
+                Color.white.ignoresSafeArea()
+
+                if records.isEmpty {
+                    VStack(spacing: 10) {
+                        Text("No matching records.")
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                        Text("当前筛选条件下没有可展示的数据。")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(records) { log in
+                                Button(action: { activeSheet = .edit(log) }) {
+                                    LogRowView(log: log)
+                                }
+                                .buttonStyle(ScaleButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 18)
+                    }
+                }
+            }
+            .navigationTitle(sheetTitle)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .sheet(item: $activeSheet) { context in
+            InputSheetRouter(context: context)
+                .presentationDetents([.height(context.sheetHeight)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(.white)
+        }
+    }
+
+    private var resolvedLogs: [LogItem] {
+        switch context {
+        case .day(let date):
+            return viewModel.logs(for: date)
+        case .type(let type, let startDate, let endDate):
+            return viewModel.logs(of: type, from: startDate, to: endDate)
+        case .poopShape(let shapeID, let startDate, let endDate):
+            return viewModel.poopLogs(shapeID: shapeID, from: startDate, to: endDate)
+        case .poopColor(let colorID, let startDate, let endDate):
+            return viewModel.poopLogs(colorID: colorID, from: startDate, to: endDate)
+        }
+    }
+
+    private var sheetTitle: String {
+        switch context {
+        case .day(let date):
+            return Formatters.fullDate.string(from: date)
+        case .type(let type, let startDate, let endDate):
+            return "\(type.title) · \(shortRange(startDate, endDate))"
+        case .poopShape(let shapeID, let startDate, let endDate):
+            return "POOP SHAPE · \(shapeID) · \(shortRange(startDate, endDate))"
+        case .poopColor(let colorID, let startDate, let endDate):
+            return "POOP COLOR · \(colorID) · \(shortRange(startDate, endDate))"
+        }
+    }
+
+    private func shortRange(_ startDate: Date, _ endDate: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+    }
+}
+
+struct DistributionRow: Hashable {
+    let icon: String?
+    let imageName: String?
+    let color: Color?
+    let value: Int
+}
+
+struct DistributionCard: View {
+    let title: String
+    let rows: [DistributionRow]
+    var onSelectRow: ((DistributionRow) -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 16, weight: .black, design: .rounded))
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                Button(action: {
+                    onSelectRow?(row)
+                }) {
+                    HStack(spacing: 10) {
+                        if let imageName = row.imageName, let image = PoopAssetLoader.image(named: imageName) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 28, height: 20)
+                        } else if let color = row.color {
+                            Circle()
+                                .fill(color)
+                                .frame(width: 16, height: 16)
+                        } else if let icon = row.icon {
+                            Text(icon)
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(width: 28, height: 20)
+                        }
+
+                        Spacer()
+
+                        Text("\(row.value)")
+                            .font(.system(size: 14, weight: .black))
+                    }
+                    .padding(.vertical, 2)
+                }
+                .buttonStyle(ScaleButtonStyle())
+                .disabled(row.value == 0 || onSelectRow == nil)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(AppTheme.lightGray)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
 struct CalendarRecordsPager: View {
     let days: [Date]
     @Binding var selectedDate: Date
@@ -1119,6 +2616,11 @@ struct CalendarRecordsPager: View {
     @EnvironmentObject var viewModel: AppViewModel
 
     var body: some View {
+        let dayLogs = viewModel.logs(for: selectedDate)
+        let waterTotal = dayLogs.reduce(0) { $0 + ($1.structuredData.waterML ?? 0) }
+        let drinkCount = dayLogs.filter { $0.type == .drink }.count
+        let poopCount = dayLogs.filter { $0.type == .poop }.count
+
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -1130,12 +2632,35 @@ struct CalendarRecordsPager: View {
                         .foregroundColor(AppTheme.black)
                 }
                 Spacer()
-                Text("\(viewModel.logCount(for: selectedDate))")
-                    .font(.system(size: 17, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(AppTheme.black)
-                    .clipShape(Circle())
+                CardMetaPill(
+                    text: "\(dayLogs.count) logs",
+                    foregroundColor: .white,
+                    backgroundColor: AppTheme.black
+                )
+            }
+            .padding(.horizontal, 24)
+
+            HStack(spacing: 8) {
+                CardMetaPill(
+                    text: "\(waterTotal)ml water",
+                    foregroundColor: AppTheme.water,
+                    backgroundColor: AppTheme.water.opacity(0.12)
+                )
+                if drinkCount > 0 {
+                    CardMetaPill(
+                        text: "\(drinkCount) drinks",
+                        foregroundColor: AppTheme.drink,
+                        backgroundColor: AppTheme.drink.opacity(0.12)
+                    )
+                }
+                if poopCount > 0 {
+                    CardMetaPill(
+                        text: "\(poopCount) poop",
+                        foregroundColor: AppTheme.black,
+                        backgroundColor: AppTheme.poop.opacity(0.28)
+                    )
+                }
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 24)
 
@@ -1174,13 +2699,16 @@ struct DailyInlineRecordsView: View {
         let dayLogs = viewModel.logs(for: date)
         Group {
             if dayLogs.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Spacer(minLength: 0)
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.gray.opacity(0.36))
                     Text("No records this day.")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(.gray.opacity(0.55))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.gray.opacity(0.58))
                     Text("Swipe left or right to browse another date.")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.gray.opacity(0.45))
                     Spacer(minLength: 0)
                 }
@@ -1214,7 +2742,7 @@ struct CalendarLogCardView: View {
         self.log = log
         self.timeText = Formatters.logTime.string(from: log.date)
         self.image = log.imageData.flatMap(ImageDecoder.image(from:))
-        let poopRecord = log.type == .poop ? PoopRecordValue(detail: log.detail) : nil
+        let poopRecord = log.type == .poop ? PoopRecordValue(shapeID: log.structuredData.poopShapeID ?? "poop_4", colorID: log.structuredData.poopColorID ?? PoopOptionResolver.defaultColorID) : nil
         self.poopImage = poopRecord.flatMap { record in
             DataSets.poops.first(where: { $0.id == record.shapeID }).flatMap { PoopAssetLoader.image(named: $0.imageName) }
         }
@@ -1225,12 +2753,27 @@ struct CalendarLogCardView: View {
         ZStack(alignment: .bottomTrailing) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(log.type.icon)
-                        .font(.system(size: 22))
-                    Spacer()
-                    Text(timeText)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.gray)
+                    HStack(spacing: 8) {
+                        Text(log.type.icon)
+                            .font(.system(size: 21))
+                        Text(log.type.title)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppTheme.black.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(timeText)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.gray)
+                        if log.duration > 0 {
+                            CardMetaPill(
+                                text: "\(log.duration) min",
+                                foregroundColor: AppTheme.black,
+                                backgroundColor: Color.white.opacity(0.9)
+                            )
+                        }
+                    }
                 }
 
                 if let poopImage {
@@ -1246,44 +2789,57 @@ struct CalendarLogCardView: View {
                         }
                     }
                 } else {
-                    Text(log.detail)
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(AppTheme.black)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
+                    CardPrimaryValue(
+                        text: log.primaryDisplayText,
+                        foregroundColor: AppTheme.black,
+                        backgroundColor: Color.white.opacity(0.9),
+                        style: log.primaryValueStyle
+                    )
                 }
 
-                if log.duration > 0 {
-                    Text("\(log.duration) min")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.gray)
-                }
+                if !log.drinkSummaryTags.isEmpty || !log.poopSymptomTags.isEmpty || !log.note.isEmpty {
+                    VStack(alignment: .leading, spacing: 7) {
+                        if !log.drinkSummaryTags.isEmpty {
+                            InfoTagWrap(
+                                tags: log.drinkSummaryTags,
+                                foregroundColor: AppTheme.black,
+                                backgroundColor: Color.white.opacity(0.9)
+                            )
+                        }
 
-                if !log.note.isEmpty {
-                    Text(log.note)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.gray)
-                        .lineLimit(2)
-                }
+                        if !log.poopSymptomTags.isEmpty {
+                            InfoTagWrap(
+                                tags: log.poopSymptomTags,
+                                foregroundColor: AppTheme.black,
+                                backgroundColor: Color.white.opacity(0.9)
+                            )
+                        }
 
-                Spacer(minLength: 0)
+                        if !log.note.isEmpty {
+                            Text(log.note)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.gray)
+                                .lineLimit(2)
+                        }
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
-            .padding(14)
-            .background(log.type.color.opacity(log.type == .poop ? 0.32 : 0.16))
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(15)
+            .background(log.type.color.opacity(log.type == .poop ? 0.28 : 0.18))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 46, height: 46)
+                    .frame(width: 52, height: 52)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color.white, lineWidth: 2)
                     )
-                    .padding(10)
+                    .padding(12)
             }
         }
     }
